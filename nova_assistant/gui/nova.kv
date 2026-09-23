@@ -1,60 +1,175 @@
 #:kivy 2.3.0
+#:import dp kivy.metrics.dp
+#:import rgba kivy.utils.get_color_from_hex
 
 <NovaRoot>:
     orientation: "vertical"
-    padding: 24
-    spacing: 16
+    padding: dp(20), dp(16)
+    spacing: dp(10)
     canvas.before:
         Color:
-            rgba: 0.05, 0.06, 0.1, 1
+            rgba: rgba("#080B16")
         Rectangle:
             pos: self.pos
             size: self.size
 
-    Label:
-        text: "Nova"
-        font_size: "34sp"
-        bold: True
-        size_hint_y: 0.12
-        color: 0.4, 0.8, 1, 1
+    BoxLayout:
+        size_hint_y: None
+        height: dp(54)
+        spacing: dp(8)
+        Label:
+            text: "✦  NOVA"
+            font_size: dp(25)
+            bold: True
+            color: rgba("#72C9FF")
+            halign: "left"
+            valign: "middle"
+            text_size: self.size
+        Label:
+            text: "●  ONLINE"
+            size_hint_x: None
+            width: dp(92)
+            font_size: dp(11)
+            bold: True
+            color: rgba("#55E6A5")
+            halign: "center"
+            valign: "middle"
+            text_size: self.size
 
     Label:
-        id: status_label
-        text: root.status_text
-        font_size: "16sp"
-        size_hint_y: 0.08
-        color: 0.7, 0.7, 0.8, 1
+        text: "YOUR PERSONAL AI VOICE ASSISTANT"
+        size_hint_y: None
+        height: dp(18)
+        font_size: dp(10)
+        bold: True
+        color: rgba("#68728A")
+        halign: "left"
+        text_size: self.size
+
+    BoxLayout:
+        orientation: "vertical"
+        size_hint_y: None
+        height: dp(124)
+        spacing: dp(4)
+        Label:
+            text: "◉"
+            size_hint_y: None
+            height: dp(78)
+            font_size: dp(64)
+            color: rgba("#63BFFF")
+            canvas.before:
+                Color:
+                    rgba: rgba("#102B4C")
+                Ellipse:
+                    pos: self.center_x - dp(34), self.center_y - dp(34)
+                    size: dp(68), dp(68)
+        Label:
+            text: root.status_text
+            font_size: dp(13)
+            color: rgba("#A8B5CB")
+            halign: "center"
+            text_size: self.size
 
     ScrollView:
-        size_hint_y: 0.55
+        id: chat_scroll
+        do_scroll_x: False
+        bar_width: dp(5)
+        bar_color: rgba("#4F78C7")
+        bar_inactive_color: rgba("#182033")
+        canvas.before:
+            Color:
+                rgba: rgba("#11182A")
+            RoundedRectangle:
+                pos: self.pos
+                size: self.size
+                radius: [dp(16)]
+            Color:
+                rgba: rgba("#243A63")
+            Line:
+                rounded_rectangle: self.x, self.y, self.width, self.height, dp(16)
+                width: dp(0.8)
         Label:
             id: conversation_label
             text: root.conversation_text
-            font_size: "16sp"
-            size_hint_y: None
-            height: self.texture_size[1]
-            text_size: self.width, None
+            font_size: dp(15)
+            color: rgba("#E7ECF7")
+            text_size: self.width - dp(30), None
             halign: "left"
             valign: "top"
-            color: 1, 1, 1, 1
-            padding: 10, 10
+            padding: dp(15), dp(15)
+            size_hint_y: None
+            height: max(self.texture_size[1] + dp(30), dp(180))
+
+    Button:
+        text: "TAP TO TALK"
+        size_hint_y: None
+        height: dp(66)
+        font_size: dp(18)
+        bold: True
+        color: rgba("#FFFFFF")
+        background_normal: ""
+        background_color: 0, 0, 0, 0
+        canvas.before:
+            Color:
+                rgba: rgba("#2166A8")
+            RoundedRectangle:
+                pos: self.pos
+                size: self.size
+                radius: [dp(16)]
+            Color:
+                rgba: rgba("#54B9FF")
+            Line:
+                rounded_rectangle: self.x, self.y, self.width, self.height, dp(16)
+                width: dp(1.2)
+        on_release: root.on_mic_press()
 
     BoxLayout:
-        size_hint_y: 0.25
-        orientation: "vertical"
-        spacing: 10
-
+        size_hint_y: None
+        height: dp(52)
+        spacing: dp(10)
         Button:
-            text: "🎤  Tap to talk"
-            font_size: "20sp"
-            background_color: 0.2, 0.5, 0.9, 1
-            on_release: root.on_mic_press()
+            text: "WAKE WORD"
+            font_size: dp(11)
+            bold: True
+            background_normal: ""
+            background_color: 0, 0, 0, 0
+            color: rgba("#DDE6F5")
+            canvas.before:
+                Color:
+                    rgba: rgba("#20283A")
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [dp(12)]
+            on_release: root.toggle_wake_word()
+        Button:
+            text: "CLEAR CHAT"
+            font_size: dp(11)
+            bold: True
+            background_normal: ""
+            background_color: 0, 0, 0, 0
+            color: rgba("#DDE6F5")
+            canvas.before:
+                Color:
+                    rgba: rgba("#20283A")
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [dp(12)]
+            on_release: root.clear_conversation()
 
-        BoxLayout:
-            spacing: 10
-            Button:
-                text: "Listen for 'Hey Nova'"
-                on_release: root.toggle_wake_word()
-            Button:
-                text: "Clear"
-                on_release: root.clear_conversation()
+    BoxLayout:
+        size_hint_y: None
+        height: dp(24)
+        Label:
+            text: "●  SYSTEM READY"
+            font_size: dp(10)
+            color: rgba("#55E6A5")
+            halign: "left"
+            text_size: self.size
+        Label:
+            text: "MICROPHONE READY"
+            font_size: dp(10)
+            color: rgba("#78849C")
+            halign: "right"
+            text_size: self.size

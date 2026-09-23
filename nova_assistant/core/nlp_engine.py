@@ -30,8 +30,10 @@ _PATTERNS = [
 
     ("weather_query", [r"\bweather\b(?: in (?P<city>[a-zA-Z\s]+))?"], "weather"),
 
-    ("web_search", [r"\bsearch (?:the web )?for (?P<query>.+)$",
+    ("web_search", [r"\bsearch google for (?P<query>.+)$",
+                     r"\bsearch (?:the web )?for (?P<query>.+)$",
                      r"\bgoogle (?P<query>.+)$"], "search"),
+    ("device_control", [r"(?P<command>(?:close|play|google|search|take|capture|lock|restart|shutdown|shut|cancel|confirm|volume|increase|decrease|mute|brightness|open settings|open wifi|open wi-fi|open bluetooth|open display|open recycle|open trash|system|time|date).*)$"], "device"),
     ("open_website", [r"\bopen (?P<site>[\w\.\-]+\.(com|org|in|net))\b"], "website"),
     ("open_app", [r"\bopen (?P<app>.+?)(?: app)?$"], "app"),
 
