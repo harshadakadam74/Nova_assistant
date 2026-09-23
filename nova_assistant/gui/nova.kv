@@ -1,0 +1,60 @@
+#:kivy 2.3.0
+
+<NovaRoot>:
+    orientation: "vertical"
+    padding: 24
+    spacing: 16
+    canvas.before:
+        Color:
+            rgba: 0.05, 0.06, 0.1, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    Label:
+        text: "Nova"
+        font_size: "34sp"
+        bold: True
+        size_hint_y: 0.12
+        color: 0.4, 0.8, 1, 1
+
+    Label:
+        id: status_label
+        text: root.status_text
+        font_size: "16sp"
+        size_hint_y: 0.08
+        color: 0.7, 0.7, 0.8, 1
+
+    ScrollView:
+        size_hint_y: 0.55
+        Label:
+            id: conversation_label
+            text: root.conversation_text
+            font_size: "16sp"
+            size_hint_y: None
+            height: self.texture_size[1]
+            text_size: self.width, None
+            halign: "left"
+            valign: "top"
+            color: 1, 1, 1, 1
+            padding: 10, 10
+
+    BoxLayout:
+        size_hint_y: 0.25
+        orientation: "vertical"
+        spacing: 10
+
+        Button:
+            text: "🎤  Tap to talk"
+            font_size: "20sp"
+            background_color: 0.2, 0.5, 0.9, 1
+            on_release: root.on_mic_press()
+
+        BoxLayout:
+            spacing: 10
+            Button:
+                text: "Listen for 'Hey Nova'"
+                on_release: root.toggle_wake_word()
+            Button:
+                text: "Clear"
+                on_release: root.clear_conversation()
