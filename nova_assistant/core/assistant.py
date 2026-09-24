@@ -35,7 +35,7 @@ class Nova:
             "web_search": lambda e: web_search.search_web(e.get("query", "")),
             "open_website": lambda e: web_search.open_website(e.get("site", "")),
             "open_app": lambda e: device_control.open_app(f"open {e.get('app', '')}"),
-            "device_control": lambda e: device_control.open_app(e.get("command", "")),
+            "device_control": lambda e: device_control.handle_device_command(e.get("command", "") or e.get("raw", "")),
 
             "volume_up": lambda e: device_control.volume_change("up"),
             "volume_down": lambda e: device_control.volume_change("down"),

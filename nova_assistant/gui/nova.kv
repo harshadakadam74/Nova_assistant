@@ -2,10 +2,12 @@
 #:import dp kivy.metrics.dp
 #:import rgba kivy.utils.get_color_from_hex
 
+
 <NovaRoot>:
     orientation: "vertical"
     padding: dp(20), dp(16)
     spacing: dp(10)
+
     canvas.before:
         Color:
             rgba: rgba("#080B16")
@@ -13,10 +15,16 @@
             pos: self.pos
             size: self.size
 
+
+    # =========================================================
+    # HEADER
+    # =========================================================
+
     BoxLayout:
         size_hint_y: None
         height: dp(54)
         spacing: dp(8)
+
         Label:
             text: "✦  NOVA"
             font_size: dp(25)
@@ -25,6 +33,7 @@
             halign: "left"
             valign: "middle"
             text_size: self.size
+
         Label:
             text: "●  ONLINE"
             size_hint_x: None
@@ -36,6 +45,11 @@
             valign: "middle"
             text_size: self.size
 
+
+    # =========================================================
+    # SUBTITLE
+    # =========================================================
+
     Label:
         text: "YOUR PERSONAL AI VOICE ASSISTANT"
         size_hint_y: None
@@ -46,130 +60,241 @@
         halign: "left"
         text_size: self.size
 
+
+    # =========================================================
+    # ANIMATED NOVA LISTENING ORB
+    # =========================================================
+
     BoxLayout:
         orientation: "vertical"
         size_hint_y: None
-        height: dp(124)
-        spacing: dp(4)
-        Label:
-            text: "◉"
-            size_hint_y: None
-            height: dp(78)
-            font_size: dp(64)
-            color: rgba("#63BFFF")
-            canvas.before:
-                Color:
-                    rgba: rgba("#102B4C")
-                Ellipse:
-                    pos: self.center_x - dp(34), self.center_y - dp(34)
-                    size: dp(68), dp(68)
+        height: dp(350)
+        spacing: dp(2)
+
+        NovaListeningOrb:
+            size_hint_y: 1
+
         Label:
             text: root.status_text
-            font_size: dp(13)
-            color: rgba("#A8B5CB")
+            size_hint_y: None
+            height: dp(42)
+            font_size: dp(27)
+            bold: True
+            color: rgba("#B9C7FF")
             halign: "center"
+            valign: "middle"
             text_size: self.size
+
+        Label:
+            text: 'Tap the microphone or say "Hey Nova"'
+            size_hint_y: None
+            height: dp(28)
+            font_size: dp(14)
+            color: rgba("#8E9DC1")
+            halign: "center"
+            valign: "middle"
+            text_size: self.size
+
+
+    # =========================================================
+    # CHAT
+    # =========================================================
 
     ScrollView:
         id: chat_scroll
         do_scroll_x: False
+
         bar_width: dp(5)
         bar_color: rgba("#4F78C7")
         bar_inactive_color: rgba("#182033")
+
         canvas.before:
+
             Color:
                 rgba: rgba("#11182A")
+
             RoundedRectangle:
                 pos: self.pos
                 size: self.size
                 radius: [dp(16)]
+
             Color:
                 rgba: rgba("#243A63")
+
             Line:
                 rounded_rectangle: self.x, self.y, self.width, self.height, dp(16)
                 width: dp(0.8)
+
         Label:
             id: conversation_label
+
             text: root.conversation_text
+
             font_size: dp(15)
+
             color: rgba("#E7ECF7")
-            text_size: self.width - dp(30), None
+
+            text_size:
+                self.width - dp(30), None
+
             halign: "left"
             valign: "top"
-            padding: dp(15), dp(15)
+
+            padding:
+                dp(15), dp(15)
+
             size_hint_y: None
+
             height: max(self.texture_size[1] + dp(30), dp(180))
 
+
+    # =========================================================
+    # MICROPHONE BUTTON
+    # =========================================================
+
     Button:
-        text: "TAP TO TALK"
+        text: "🎙   TAP TO TALK"
+
         size_hint_y: None
         height: dp(66)
+
         font_size: dp(18)
         bold: True
+
         color: rgba("#FFFFFF")
+
         background_normal: ""
         background_color: 0, 0, 0, 0
+
         canvas.before:
+
             Color:
                 rgba: rgba("#2166A8")
+
             RoundedRectangle:
                 pos: self.pos
                 size: self.size
                 radius: [dp(16)]
+
             Color:
                 rgba: rgba("#54B9FF")
+
             Line:
-                rounded_rectangle: self.x, self.y, self.width, self.height, dp(16)
+                rounded_rectangle:
+                    self.x, self.y, self.width, self.height, dp(16)
+
                 width: dp(1.2)
-        on_release: root.on_mic_press()
+
+        on_release:
+            root.on_mic_press()
+
+
+    # =========================================================
+    # SECONDARY BUTTONS
+    # =========================================================
 
     BoxLayout:
         size_hint_y: None
         height: dp(52)
         spacing: dp(10)
+
         Button:
             text: "WAKE WORD"
+
             font_size: dp(11)
             bold: True
+
             background_normal: ""
             background_color: 0, 0, 0, 0
+
             color: rgba("#DDE6F5")
+
             canvas.before:
+
                 Color:
                     rgba: rgba("#20283A")
+
                 RoundedRectangle:
                     pos: self.pos
                     size: self.size
                     radius: [dp(12)]
-            on_release: root.toggle_wake_word()
+
+                Color:
+                    rgba: rgba("#34476B")
+
+                Line:
+                    rounded_rectangle:
+                        self.x, self.y, self.width, self.height, dp(12)
+
+                    width: dp(0.8)
+
+            on_release:
+                root.toggle_wake_word()
+
+
         Button:
             text: "CLEAR CHAT"
+
             font_size: dp(11)
             bold: True
+
             background_normal: ""
             background_color: 0, 0, 0, 0
+
             color: rgba("#DDE6F5")
+
             canvas.before:
+
                 Color:
                     rgba: rgba("#20283A")
+
                 RoundedRectangle:
                     pos: self.pos
                     size: self.size
                     radius: [dp(12)]
-            on_release: root.clear_conversation()
+
+                Color:
+                    rgba: rgba("#34476B")
+
+                Line:
+                    rounded_rectangle:
+                        self.x, self.y, self.width, self.height, dp(12)
+
+                    width: dp(0.8)
+
+            on_release:
+                root.clear_conversation()
+
+
+    # =========================================================
+    # STATUS BAR
+    # =========================================================
 
     BoxLayout:
         size_hint_y: None
         height: dp(24)
+
         Label:
             text: "●  SYSTEM READY"
+
             font_size: dp(10)
+
             color: rgba("#55E6A5")
+
             halign: "left"
+            valign: "middle"
+
             text_size: self.size
+
+
         Label:
             text: "MICROPHONE READY"
+
             font_size: dp(10)
+
             color: rgba("#78849C")
+
             halign: "right"
+            valign: "middle"
+
             text_size: self.size
