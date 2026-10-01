@@ -1,17 +1,20 @@
 """
-Nova's "brain": takes recognized text, parses intent, dispatches to the
+Zyra's "brain": takes recognized text, parses intent, dispatches to the
 right feature handler, returns a spoken/displayed reply.
 """
 from core.nlp_engine import parse_intent
+from core.ai_engine import GeminiClient
+from features import productivity
 from features import (
     reminders, alarms, notes, timer_calc, weather,
-    web_search, device_control, smalltalk,
+    web_search, device_control, smalltalk, news,
 )
 
 
-class Nova:
-    def __init__(self, tts):
+class Zyra:
+    def __init__(self, tts, ai_client=None):
         self.tts = tts
+        self.ai = ai_client or GeminiClient()
         self.awake = False
         self.handlers = {
             "greeting": lambda e: smalltalk.greet(),
@@ -21,6 +24,23 @@ class Nova:
             "set_reminder": lambda e: reminders.add_reminder(e.get("task", ""), e.get("time", "")),
             "list_reminders": lambda e: reminders.list_reminders(),
 
+            "add_task": lambda e: productivity.add_task(e.get("task", "")),
+            "list_tasks": lambda e: productivity.list_tasks(),
+            "complete_task": lambda e: productivity.complete_task(e.get("task", "")),
+            "add_schedule_event": lambda e: productivity.add_schedule_event(
+                e.get("title", ""), e.get("date", ""), e.get("time", "")
+            ),
+            "list_schedule": lambda e: productivity.schedule_for(e.get("date", "today")),
+            "daily_briefing": lambda e: productivity.daily_briefing(),
+            "remember_preference": lambda e: productivity.remember_preference(
+                e.get("preference", "")
+            ),
+            "forget_preferences": lambda e: productivity.forget_preferences(),
+            "search_conversation": lambda e: productivity.search_conversation(
+                e.get("query", "")
+            ),
+            "file_search": lambda e: device_control.search_files(e.get("query", "")),
+
             "set_alarm": lambda e: alarms.add_alarm(e.get("time", "")),
             "list_alarms": lambda e: alarms.list_alarms(),
 
@@ -28,9 +48,11 @@ class Nova:
             "read_notes": lambda e: notes.read_notes(),
 
             "set_timer": lambda e: timer_calc.start_timer(e.get("duration", ""), self.tts),
+            "pomodoro": lambda e: timer_calc.start_timer("25 minutes", self.tts),
             "calculate": lambda e: timer_calc.calculate(e.get("expr", "")),
 
             "weather_query": lambda e: weather.get_weather(e.get("city", "")),
+            "news_query": lambda e: news.get_headlines() or "I couldn't reach the news feed right now.",
 
             "web_search": lambda e: web_search.search_web(e.get("query", "")),
             "open_website": lambda e: web_search.open_website(e.get("site", "")),
@@ -49,7 +71,7 @@ class Nova:
         }
 
     def handle(self, text: str) -> str:
-        """Takes raw recognized speech, returns Nova's reply text."""
+        """Takes raw recognized speech, returns Zyra's reply text."""
         if not text:
             return ""
         if text.startswith("__error__:"):
@@ -59,4 +81,13 @@ class Nova:
         handler = self.handlers.get(intent)
         if handler:
             return handler(entities)
-        return smalltalk.fallback(entities.get("raw", text))
+        try:
+            preferences = productivity.get_preferences()
+        except Exception:
+            preferences = ""
+        reply = (
+            self.ai.respond(text, preferences=preferences)
+            if preferences
+            else self.ai.respond(text)
+        )
+        return reply or smalltalk.fallback(entities.get("raw", text))

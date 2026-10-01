@@ -1,5 +1,5 @@
 """
-Nova — Siri-style voice assistant.
+Zyra — Siri-style voice assistant.
 
 Run on desktop:
     python main.py
@@ -9,491 +9,230 @@ Package for Android:
 """
 
 import threading
-from math import sin, pi , cos
-
+from datetime import datetime
+import psutil
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.graphics import Color, Ellipse, Line
 from kivy.lang import Builder
-from kivy.properties import NumericProperty, StringProperty
+from kivy.properties import (
+    BooleanProperty,
+    ListProperty,
+    NumericProperty,
+    ObjectProperty,
+    StringProperty,
+)
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.popup import Popup
 from kivy.uix.widget import Widget
 
 from core.database import init_db
 from core.text_to_speech import TextToSpeech
 from core.speech_to_text import SpeechToText
-from core.assistant import Nova
-from core.wake_word import WakeWordListener
-
+from core.assistant import Zyra
 from features.alarms import start_alarm_watcher
 from features.device_control import handle_device_command
+from features import productivity
 
-from config import ASSISTANT_NAME
+
+from config import ASSISTANT_NAME, STT_LANGUAGE, STT_LANGUAGE_OPTIONS, TTS_RATE, WAKE_WORDS
 
 
 # ============================================================
 # LOAD KV
 # ============================================================
 
-Builder.load_file("gui/nova.kv")
+Builder.load_file("gui/zyra.kv")
 
 
 # ============================================================
-# NOVA LISTENING ORB
+# ZYRA LISTENING ORB
 # ============================================================
 
-class NovaListeningOrb(Widget):
-
-    phase = NumericProperty(0)
-    rotation = NumericProperty(0)
-    pulse = NumericProperty(0)
+class ZyraListeningOrb(Widget):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
         self.bind(
             pos=self.draw_orb,
             size=self.draw_orb,
-            phase=self.draw_orb,
-            rotation=self.draw_orb,
-            pulse=self.draw_orb,
         )
-
-        # 60 FPS animation
-        Clock.schedule_interval(self.animate, 1 / 60)
-
         self.draw_orb()
 
-    # --------------------------------------------------------
-    # Animation
-    # --------------------------------------------------------
-
-    def animate(self, dt):
-
-        # Waveform movement
-        self.phase += dt * 4.5
-
-        # Ring rotation
-        self.rotation += dt * 25
-
-        # Center pulse
-        self.pulse += dt * 3
-
-        if self.rotation >= 360:
-            self.rotation -= 360
-
-        if self.pulse >= 2 * pi:
-            self.pulse -= 2 * pi
-
-    # --------------------------------------------------------
-    # Draw complete orb
-    # --------------------------------------------------------
-
     def draw_orb(self, *args):
-
         self.canvas.clear()
-
         cx = self.center_x
         cy = self.center_y
-
         with self.canvas:
+            Color(0.02, 0.20, 1.0, 0.08)
+            Ellipse(pos=(cx - 145, cy - 145), size=(290, 290))
+            Color(0.02, 0.35, 1.0, 0.55)
+            Line(circle=(cx, cy, 142), width=1)
+            Color(0.0, 0.65, 1.0, 0.95)
+            Line(ellipse=(cx - 112, cy - 112, 224, 224, 25, 255), width=2.2)
+            Color(0.65, 0.05, 1.0, 0.9)
+            Line(ellipse=(cx - 112, cy - 112, 224, 224, 200, 350), width=2.2)
+            Color(0.02, 0.22, 0.90, 0.85)
+            Ellipse(pos=(cx - 67, cy - 67), size=(134, 134))
+            Color(0.0, 0.70, 1.0, 0.58)
+            Ellipse(pos=(cx - 63, cy - 42), size=(92, 92))
+            Color(0.75, 0.03, 1.0, 0.58)
+            Ellipse(pos=(cx - 8, cy - 48), size=(92, 92))
+            Color(0.75, 0.95, 1.0, 0.95)
+            Ellipse(pos=(cx - 9, cy - 9), size=(18, 18))
 
-            # ==================================================
-            # OUTER BLUE GLOW
-            # ==================================================
 
-            Color(
-                0.02,
-                0.20,
-                1.0,
-                0.045
-            )
+class ZyraSettingsPopup(Popup):
 
-            Ellipse(
-                pos=(
-                    cx - 160,
-                    cy - 160
-                ),
-                size=(
-                    320,
-                    320
+    assistant_root = ObjectProperty(None, allownone=True)
+    language_labels = ListProperty(list(STT_LANGUAGE_OPTIONS))
+    voice_labels = ListProperty([])
+    selected_language = StringProperty("English (India)")
+    selected_voice = StringProperty("System default")
+    selected_theme = StringProperty("Dark")
+    selected_mode = StringProperty("Always listening")
+    rate = NumericProperty(TTS_RATE)
+
+    def __init__(self, assistant_root, **kwargs):
+        super().__init__(**kwargs)
+        self.assistant_root = assistant_root
+        self._voice_by_label = {}
+
+    def apply_settings(self):
+        root = self.assistant_root
+        language = STT_LANGUAGE_OPTIONS.get(self.ids.language_spinner.text)
+        if language and root.stt:
+            root.stt.set_language(language)
+            if root.database_available:
+                productivity.set_setting("language", language)
+
+        voice_id = self._voice_by_label.get(self.ids.voice_spinner.text)
+        rate = int(self.ids.rate_slider.value)
+        if root.database_available:
+            if voice_id:
+                productivity.set_setting("voice_id", voice_id)
+            productivity.set_setting("tts_rate", str(rate))
+        root.set_theme(self.ids.theme_spinner.text, persist=root.database_available)
+        root.set_listening_mode(self.ids.mode_spinner.text)
+        self.dismiss()
+
+        def apply_tts_settings():
+            try:
+                if voice_id:
+                    root.tts.set_voice(voice_id)
+                root.tts.set_rate(rate)
+            except Exception as error:
+                Clock.schedule_once(
+                    lambda dt: root._append(f"Speech setting error: {error}")
                 )
-            )
 
-            # ==================================================
-            # OUTER PURPLE GLOW
-            # ==================================================
-
-            Color(
-                0.45,
-                0.03,
-                1.0,
-                0.035
-            )
-
-            Ellipse(
-                pos=(
-                    cx - 145,
-                    cy - 145
-                ),
-                size=(
-                    290,
-                    290
-                )
-            )
-
-            # ==================================================
-            # OUTER RING
-            # ==================================================
-
-            Color(
-                0.02,
-                0.35,
-                1.0,
-                0.45
-            )
-
-            Line(
-                circle=(
-                    cx,
-                    cy,
-                    142
-                ),
-                width=1
-            )
-
-            # ==================================================
-            # SECOND RING
-            # ==================================================
-
-            Color(
-                0.05,
-                0.30,
-                1.0,
-                0.65
-            )
-
-            Line(
-                circle=(
-                    cx,
-                    cy,
-                    126
-                ),
-                width=1.3
-            )
-
-            # ==================================================
-            # ROTATING BLUE RING
-            # ==================================================
-
-            Color(
-                0.0,
-                0.65,
-                1.0,
-                0.95
-            )
-
-            Line(
-                ellipse=(
-                    cx - 112,
-                    cy - 112,
-                    224,
-                    224,
-                    self.rotation,
-                    self.rotation + 230
-                ),
-                width=2.2
-            )
-
-            # ==================================================
-            # ROTATING PURPLE RING
-            # ==================================================
-
-            Color(
-                0.65,
-                0.05,
-                1.0,
-                0.95
-            )
-
-            Line(
-                ellipse=(
-                    cx - 112,
-                    cy - 112,
-                    224,
-                    224,
-                    self.rotation + 180,
-                    self.rotation + 350
-                ),
-                width=2.2
-            )
-
-            # ==================================================
-            # MAIN ORB GLOW
-            # ==================================================
-
-            Color(
-                0.0,
-                0.30,
-                1.0,
-                0.15
-            )
-
-            Ellipse(
-                pos=(
-                    cx - 88,
-                    cy - 88
-                ),
-                size=(
-                    176,
-                    176
-                )
-            )
-
-            # ==================================================
-            # MAIN BLUE ORB
-            # ==================================================
-
-            Color(
-                0.02,
-                0.22,
-                0.90,
-                0.85
-            )
-
-            Ellipse(
-                pos=(
-                    cx - 67,
-                    cy - 67
-                ),
-                size=(
-                    134,
-                    134
-                )
-            )
-
-            # ==================================================
-            # CYAN ORB
-            # ==================================================
-
-            Color(
-                0.0,
-                0.70,
-                1.0,
-                0.58
-            )
-
-            Ellipse(
-                pos=(
-                    cx - 63,
-                    cy - 42
-                ),
-                size=(
-                    92,
-                    92
-                )
-            )
-
-            # ==================================================
-            # PURPLE ORB
-            # ==================================================
-
-            Color(
-                0.75,
-                0.03,
-                1.0,
-                0.58
-            )
-
-            Ellipse(
-                pos=(
-                    cx - 8,
-                    cy - 48
-                ),
-                size=(
-                    92,
-                    92
-                )
-            )
-
-            # ==================================================
-            # BLUE LOWER ORB
-            # ==================================================
-
-            Color(
-                0.05,
-                0.35,
-                1.0,
-                0.58
-            )
-
-            Ellipse(
-                pos=(
-                    cx - 48,
-                    cy - 64
-                ),
-                size=(
-                    92,
-                    92
-                )
-            )
-
-            # ==================================================
-            # CENTER LIGHT PULSE
-            # ==================================================
-
-            glow_size = 18 + sin(self.pulse) * 4
-
-            Color(
-                0.75,
-                0.95,
-                1.0,
-                0.90
-            )
-
-            Ellipse(
-                pos=(
-                    cx - glow_size / 2,
-                    cy - glow_size / 2
-                ),
-                size=(
-                    glow_size,
-                    glow_size
-                )
-            )
-
-            # ==================================================
-            # WAVEFORM
-            # ==================================================
-
-            self.draw_waveform(
-                cx - 125,
-                cy,
-                -1
-            )
-
-            self.draw_waveform(
-                cx + 125,
-                cy,
-                1
-            )
-
-    # --------------------------------------------------------
-    # Waveform
-    # --------------------------------------------------------
-
-    def draw_waveform(self, x, y, direction):
-
-        bars = 15
-        spacing = 9
-
-        for i in range(bars):
-
-            wave = sin(
-                self.phase * 2
-                + i * 0.75
-            )
-
-            distance = abs(
-                i - bars / 2
-            )
-
-            strength = max(
-                0.15,
-                1 - distance / 8
-            )
-
-            height = (
-                10
-                + strength * 52
-                + wave * 9
-            )
-
-            height = max(
-                5,
-                height
-            )
-
-            if direction < 0:
-                bar_x = x - i * spacing
-            else:
-                bar_x = x + i * spacing
-
-            # Blue -> purple
-            ratio = i / bars
-
-            Color(
-                ratio * 0.45,
-                0.45 - ratio * 0.25,
-                1.0,
-                0.85
-            )
-
-            Line(
-                points=[
-                    bar_x,
-                    y - height / 2,
-                    bar_x,
-                    y + height / 2,
-                ],
-                width=2
-            )
+        threading.Thread(target=apply_tts_settings, daemon=True).start()
 
 
 # ============================================================
-# NOVA ROOT
+# ZYRA ROOT
 # ============================================================
 
-class NovaRoot(BoxLayout):
+class _UnavailableTextToSpeech:
+
+    voice_options = []
+    current_voice_id = None
+
+    def say(self, text):
+        return
+
+    def say_async(self, text):
+        return
+
+    def stop(self):
+        return
+
+    def set_voice(self, voice_id):
+        return False
+
+    def set_rate(self, rate):
+        return False
+
+
+class ZyraRoot(BoxLayout):
 
     status_text = StringProperty(
-        "Tap the mic and say something."
+        "I'm listening..."
     )
 
     conversation_text = StringProperty("")
+    auto_listening = BooleanProperty(False)
+    listening_mode = StringProperty("Always listening")
+    theme = StringProperty("Dark")
+    background_color = ListProperty([0.031, 0.043, 0.086, 1])
+    surface_color = ListProperty([0.067, 0.094, 0.165, 1])
+    border_color = ListProperty([0.141, 0.227, 0.388, 1])
+    primary_text_color = ListProperty([0.906, 0.925, 0.969, 1])
+    secondary_text_color = ListProperty([0.557, 0.616, 0.757, 1])
+    cpu_status = StringProperty("CPU --")
+    memory_status = StringProperty("RAM --")
+    battery_status = StringProperty("BATTERY --")
 
     def __init__(self, **kwargs):
 
         super().__init__(**kwargs)
 
-        # ----------------------------------------------------
-        # Initialize database
-        # ----------------------------------------------------
+        startup_errors = []
+        self.database_available = False
 
-        init_db()
+        try:
+            init_db()
+            self.database_available = True
+        except Exception as error:
+            startup_errors.append(f"Database: {error}")
 
-        # ----------------------------------------------------
-        # Core services
-        # ----------------------------------------------------
+        try:
+            self.tts = TextToSpeech()
+            tts_available = True
+        except Exception as error:
+            self.tts = _UnavailableTextToSpeech()
+            tts_available = False
+            startup_errors.append(f"Text-to-speech: {error}")
 
-        self.tts = TextToSpeech()
+        try:
+            self.stt = SpeechToText()
+        except Exception as error:
+            self.stt = None
+            startup_errors.append(f"Microphone: {error}")
 
-        self.stt = SpeechToText()
-
-        self.nova = Nova(
+        self.zyra = Zyra(
             self.tts
         )
 
-        self.wake_listener = WakeWordListener(
-            self.stt,
-            self._on_wake_word
-        )
-
-        # ----------------------------------------------------
-        # State
-        # ----------------------------------------------------
-
-        self._wake_active = False
-
         self._response_lock = threading.Lock()
+        self._auto_thread = None
+        self._wake_triggered = False
+
+        language = (
+            productivity.get_setting("language", STT_LANGUAGE)
+            if self.database_available else STT_LANGUAGE
+        )
+        if self.stt:
+            self.stt.set_language(language)
+        self.listening_mode = (
+            productivity.get_setting("listening_mode", "Always listening")
+            if self.database_available else "Always listening"
+        )
+        saved_theme = productivity.get_setting("theme", "Dark") if self.database_available else "Dark"
+        self.set_theme(saved_theme, persist=False)
+        self._apply_saved_voice_settings()
+        self.refresh_system_status(0)
+        Clock.schedule_interval(self.refresh_system_status, 5)
 
         # ----------------------------------------------------
         # Alarm watcher
         # ----------------------------------------------------
 
-        start_alarm_watcher(
-            self.tts
-        )
+        if tts_available:
+            try:
+                start_alarm_watcher(self.tts)
+            except Exception as error:
+                startup_errors.append(f"Alarm watcher: {error}")
 
         # ----------------------------------------------------
         # Welcome message
@@ -502,82 +241,226 @@ class NovaRoot(BoxLayout):
         self._append(
             f"{ASSISTANT_NAME}: "
             f"Hi! I'm {ASSISTANT_NAME}. "
-            f"Tap the mic or say 'Hey Nova'."
+            "I'm listening. Speak naturally."
         )
+
+        if startup_errors:
+            self.status_text = "Startup issue. See chat for details."
+            for error in startup_errors:
+                self._append(f"Startup error: {error}")
+
+        if self.stt is not None:
+            Clock.schedule_once(self.start_auto_listening, 1)
 
     # ========================================================
     # UI ACTIONS
     # ========================================================
 
-    def on_mic_press(self):
-
-        if self._response_lock.locked():
+    def start_auto_listening(self, *args):
+        if self.stt is None:
+            self.status_text = "Microphone unavailable. See chat for details."
             return
 
+        if self._auto_thread and self._auto_thread.is_alive():
+            self.auto_listening = True
+            self.status_text = "Listening..."
+            return
+
+        self.auto_listening = True
         self.status_text = "Listening..."
+        self._auto_thread = threading.Thread(
+            target=self._auto_listen_loop,
+            daemon=True,
+        )
+        self._auto_thread.start()
 
-        threading.Thread(
-            target=self._listen_and_respond,
-            daemon=True
-        ).start()
+    def stop_auto_listening(self):
+        self.auto_listening = False
+        self.status_text = "Pausing listening..."
+        self.tts.stop()
 
-    # --------------------------------------------------------
-
-    def toggle_wake_word(self):
-
-        if self._wake_active:
-
-            self.wake_listener.stop()
-
-            self._wake_active = False
-
-            self.status_text = (
-                "Wake-word listening stopped."
-            )
-
+    def toggle_auto_listening(self):
+        if self.auto_listening:
+            self.stop_auto_listening()
         else:
+            self.start_auto_listening()
 
-            self.wake_listener.start()
+    def set_listening_mode(self, mode):
+        if mode not in {"Always listening", "Hey Zyra"}:
+            return
+        self.listening_mode = mode
+        self._wake_triggered = False
+        if self.database_available:
+            productivity.set_setting("listening_mode", mode)
+        if self.auto_listening:
+            self.status_text = "Listening..." if mode == "Always listening" else "Listening for Hey Zyra..."
 
-            self._wake_active = True
+    def set_theme(self, theme, persist=True):
+        if theme == "Light":
+            self.background_color = [0.94, 0.96, 0.98, 1]
+            self.surface_color = [1, 1, 1, 1]
+            self.border_color = [0.72, 0.78, 0.86, 1]
+            self.primary_text_color = [0.10, 0.14, 0.22, 1]
+            self.secondary_text_color = [0.29, 0.35, 0.45, 1]
+            self.theme = "Light"
+        else:
+            self.background_color = [0.031, 0.043, 0.086, 1]
+            self.surface_color = [0.067, 0.094, 0.165, 1]
+            self.border_color = [0.141, 0.227, 0.388, 1]
+            self.primary_text_color = [0.906, 0.925, 0.969, 1]
+            self.secondary_text_color = [0.557, 0.616, 0.757, 1]
+            self.theme = "Dark"
+        if persist and self.database_available:
+            productivity.set_setting("theme", self.theme)
 
-            self.status_text = (
-                f"Listening for "
-                f"'Hey {ASSISTANT_NAME}'..."
-            )
+    def open_settings(self):
+        popup = ZyraSettingsPopup(self)
+        popup.selected_language = next(
+            (label for label, code in STT_LANGUAGE_OPTIONS.items()
+             if self.stt and code == self.stt.language),
+            "English (India)",
+        )
+        popup.selected_theme = self.theme
+        popup.selected_mode = self.listening_mode
+        popup.rate = getattr(self.tts, "current_rate", TTS_RATE)
 
-    # --------------------------------------------------------
+        for index, (voice_id, voice_name) in enumerate(getattr(self.tts, "voice_options", []), 1):
+            label = f"{voice_name} ({index})"
+            popup.voice_labels.append(label)
+            popup._voice_by_label[label] = voice_id
+            if voice_id == getattr(self.tts, "current_voice_id", None):
+                popup.selected_voice = label
+
+        if not popup.voice_labels:
+            popup.voice_labels = ["System default"]
+        popup.open()
+
+    def _apply_saved_voice_settings(self):
+        if not self.database_available:
+            return
+        rate = productivity.get_setting("tts_rate", str(TTS_RATE))
+        try:
+            self.tts.set_rate(int(rate))
+        except (AttributeError, ValueError, RuntimeError):
+            pass
+        voice_id = productivity.get_setting("voice_id")
+        if voice_id:
+            try:
+                self.tts.set_voice(voice_id)
+            except (AttributeError, RuntimeError):
+                pass
+
+    def refresh_system_status(self, *_args):
+        self.cpu_status = f"CPU {psutil.cpu_percent(interval=None):.0f}%"
+        self.memory_status = f"RAM {psutil.virtual_memory().percent:.0f}%"
+        try:
+            battery = psutil.sensors_battery()
+        except (OSError, RuntimeError):
+            battery = None
+        self.battery_status = (
+            f"BATTERY {battery.percent:.0f}%" if battery else "BATTERY N/A"
+        )
+
+    def stop_speech(self):
+        self.tts.stop()
+        self.status_text = "Speech stopped."
 
     def clear_conversation(self):
 
         self.conversation_text = ""
+        if self.database_available:
+            productivity.clear_conversation_history()
 
     # ========================================================
-    # WAKE WORD
+    # AUTOMATIC LISTENING
     # ========================================================
 
-    def _on_wake_word(self):
+    def _auto_listen_loop(self):
+        while self.auto_listening:
+            if not self._response_lock.acquire(timeout=0.25):
+                continue
 
-        Clock.schedule_once(
-            lambda dt: self._append(
-                f"{ASSISTANT_NAME}: Yes?"
-            )
-        )
+            try:
+                if not self.auto_listening:
+                    break
 
-        self.tts.say("Yes?")
+                if self.listening_mode == "Hey Zyra" and not self._wake_triggered:
+                    detected = self.stt.listen_for_wake_word(WAKE_WORDS, timeout=4)
+                    if detected:
+                        self._wake_triggered = True
+                        Clock.schedule_once(
+                            lambda dt: setattr(self, "status_text", "Speak your command...")
+                        )
+                        self.tts.say("Yes?")
+                    continue
 
-        threading.Thread(
-            target=self._listen_and_respond,
-            daemon=True
-        ).start()
+                Clock.schedule_once(
+                    lambda dt: setattr(self, "status_text", "Listening...")
+                )
+                heard = self.stt.listen_once()
+                if not self.auto_listening:
+                    break
+                if heard.startswith("__error__:"):
+                    Clock.schedule_once(
+                        lambda dt: setattr(
+                            self,
+                            "status_text",
+                            "Speech service unavailable; retrying...",
+                        )
+                    )
+                    threading.Event().wait(5)
+                    continue
+                if not heard:
+                    if self.listening_mode == "Hey Zyra":
+                        self._wake_triggered = False
+                    continue
+
+                self._record_message("user", heard)
+                Clock.schedule_once(
+                    lambda dt: setattr(self, "status_text", "Thinking...")
+                )
+
+                self.process_command(heard, wait_for_speech=True)
+                self._wake_triggered = False
+
+                if self.auto_listening:
+                    Clock.schedule_once(
+                        lambda dt: setattr(
+                            self,
+                            "status_text",
+                            "Listening..." if self.listening_mode == "Always listening" else "Listening for Hey Zyra...",
+                        )
+                    )
+            except Exception as error:
+                print("Automatic listening error:", error)
+                Clock.schedule_once(
+                    lambda dt: setattr(
+                        self,
+                        "status_text",
+                        "Listening paused briefly after an error...",
+                    )
+                )
+                threading.Event().wait(1)
+            finally:
+                self._response_lock.release()
 
     # ========================================================
     # PROCESS COMMAND
     # ========================================================
 
-    def process_command(self, command):
+    def process_command(self, command, wait_for_speech=False):
 
         command = command.lower().strip()
+
+        if command in {"stop listening", "goodbye", "stop zyra", "go to sleep"}:
+            self.stop_auto_listening()
+            self._deliver_response("Goodbye.", wait_for_speech)
+            return True
+
+        if command in {"stop speaking", "be quiet"}:
+            self.tts.stop()
+            self._record_message("assistant", "Stopped speaking.")
+            return True
 
         # ----------------------------------------------------
         # Device commands
@@ -588,136 +471,39 @@ class NovaRoot(BoxLayout):
         )
 
         if response:
-
-            Clock.schedule_once(
-                lambda dt: self._append(
-                    f"{ASSISTANT_NAME}: {response}"
-                )
-            )
-
-            self.tts.say(response)
-
+            self._deliver_response(response, wait_for_speech)
             return True
 
         # ----------------------------------------------------
-        # Nova AI response
+        # Zyra AI response
         # ----------------------------------------------------
 
-        reply = self.nova.handle(
+        reply = self.zyra.handle(
             command
         )
 
-        Clock.schedule_once(
-            lambda dt: self._append(
-                f"{ASSISTANT_NAME}: {reply}"
-            )
-        )
-
-        self.tts.say(reply)
-
+        self._deliver_response(reply, wait_for_speech)
         return True
 
-    # ========================================================
-    # LISTEN + RESPOND
-    # ========================================================
+    def _deliver_response(self, response, wait_for_speech):
+        self._record_message("assistant", response)
 
-    def _listen_and_respond(self):
-
-        if not self._response_lock.acquire(
-            blocking=False
-        ):
-            return
-
-        try:
-
-            # -----------------------------------------------
-            # Listening
-            # -----------------------------------------------
-
+        if wait_for_speech:
             Clock.schedule_once(
-                lambda dt: setattr(
-                    self,
-                    "status_text",
-                    "Listening..."
-                )
+                lambda dt: setattr(self, "status_text", "Speaking...")
             )
+            self.tts.say(response)
+        else:
+            self.tts.say_async(response)
 
-            heard = self.stt.listen_once()
-
-            # -----------------------------------------------
-            # Nothing heard
-            # -----------------------------------------------
-
-            if not heard:
-
-                Clock.schedule_once(
-                    lambda dt: setattr(
-                        self,
-                        "status_text",
-                        "Didn't catch that — tap to try again."
-                    )
-                )
-
-                return
-
-            # -----------------------------------------------
-            # User message
-            # -----------------------------------------------
-
-            Clock.schedule_once(
-                lambda dt: self._append(
-                    f"You: {heard}"
-                )
-            )
-
-            # -----------------------------------------------
-            # Processing
-            # -----------------------------------------------
-
-            Clock.schedule_once(
-                lambda dt: setattr(
-                    self,
-                    "status_text",
-                    "Thinking..."
-                )
-            )
-
-            response = self.process_command(
-                heard
-            )
-
-            # -----------------------------------------------
-            # Finished
-            # -----------------------------------------------
-
-            if response:
-
-                Clock.schedule_once(
-                    lambda dt: setattr(
-                        self,
-                        "status_text",
-                        "Tap the mic and say something."
-                    )
-                )
-
-        except Exception as e:
-
-            print(
-                "Nova error:",
-                e
-            )
-
-            Clock.schedule_once(
-                lambda dt: setattr(
-                    self,
-                    "status_text",
-                    "Something went wrong."
-                )
-            )
-
-        finally:
-
-            self._response_lock.release()
+    def _record_message(self, role, content):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if self.database_available:
+            productivity.save_conversation(role, content)
+        label = "You" if role == "user" else ASSISTANT_NAME
+        Clock.schedule_once(
+            lambda dt: self._append(f"[{timestamp}] {label}: {content}")
+        )
 
     # ========================================================
     # CHAT
@@ -731,10 +517,10 @@ class NovaRoot(BoxLayout):
 
 
 # ============================================================
-# NOVA APP
+# ZYRA APP
 # ============================================================
 
-class NovaApp(App):
+class ZyraApp(App):
 
     def build(self):
 
@@ -742,7 +528,11 @@ class NovaApp(App):
             f"{ASSISTANT_NAME} — Voice Assistant"
         )
 
-        return NovaRoot()
+        return ZyraRoot()
+
+    def on_stop(self):
+        if self.root:
+            self.root.stop_auto_listening()
 
 
 # ============================================================
@@ -751,4 +541,4 @@ class NovaApp(App):
 
 if __name__ == "__main__":
 
-    NovaApp().run()
+    ZyraApp().run()

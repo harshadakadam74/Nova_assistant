@@ -1,12 +1,14 @@
 import random
 from datetime import datetime
 
+
 JOKES = [
     "Why did the developer go broke? Because they used up all their cache.",
     "I told my computer I needed a break, and it said 'no problem, I'll go to sleep.'",
     "Why do programmers prefer dark mode? Because light attracts bugs.",
     "I would tell you a UDP joke, but you might not get it.",
 ]
+
 
 FACTS = [
     "Honey never spoils — archaeologists have found edible honey in ancient tombs.",
@@ -15,7 +17,12 @@ FACTS = [
     "Bananas are berries, but strawberries aren't.",
 ]
 
-GREETINGS = ["Hi there!", "Hello! How can I help?", "Hey, I'm listening."]
+
+GREETINGS = [
+    "Hi there!",
+    "Hello! How can I help?",
+    "Hey, I'm listening.",
+]
 
 
 def greet() -> str:
@@ -39,6 +46,11 @@ def current_date() -> str:
 
 
 def fallback(raw_text: str) -> str:
+
     if not raw_text:
         return "Sorry, I didn't catch that."
-    return f"I'm not sure how to help with '{raw_text}' yet, but I'm learning."
+
+    return (
+        f"I'm not sure how to help with "
+        f"'{raw_text}' yet, but I'm learning."
+    )

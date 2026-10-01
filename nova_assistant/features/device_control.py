@@ -1,7 +1,8 @@
-"""Desktop and Android device-control helpers for Nova."""
+"""Desktop and Android device-control helpers for Zyra."""
 import datetime
 import os
 import platform
+import re
 import shutil
 import subprocess
 import webbrowser
@@ -54,6 +55,8 @@ WINDOWS_APPS = {
     "powershell": "powershell.exe",
     "explorer": "explorer.exe",
     "file explorer": "explorer.exe",
+    "file browser": "explorer.exe",
+    "file manager": "explorer.exe",
     "task manager": "taskmgr.exe",
     "control panel": "control.exe",
     "wordpad": "write.exe",
@@ -99,6 +102,16 @@ def open_website(name):
 def open_application(name):
     name = name.lower().strip()
 
+    if name in {"the browser", "web browser", "browser"}:
+        try:
+            return (
+                "Opening your default browser."
+                if webbrowser.open("about:blank")
+                else "I couldn't open your default browser."
+            )
+        except (OSError, webbrowser.Error) as error:
+            return f"Could not open your browser: {error}"
+
     if name in WEBSITES:
         return open_website(name)
 
@@ -130,11 +143,7 @@ def open_application(name):
         except OSError as error:
             return f"Could not open {name}: {error}"
 
-    try:
-        subprocess.Popen(["cmd", "/c", "start", "", name], shell=False)
-        return f"Trying to open {name}"
-    except OSError as error:
-        return f"Could not open {name}: {error}"
+    return f"I don't recognize the app '{name}'. Try Chrome, Edge, YouTube, or a website."
 
 
 def open_windows_app(name):
@@ -250,9 +259,9 @@ def take_screenshot():
     if pyautogui is None:
         return "Install PyAutoGUI to take screenshots."
     try:
-        folder = os.path.join(os.path.expanduser("~"), "Pictures", "Nova Screenshots")
+        folder = os.path.join(os.path.expanduser("~"), "Pictures", "Zyra Screenshots")
         os.makedirs(folder, exist_ok=True)
-        path = os.path.join(folder, datetime.datetime.now().strftime("Nova_%Y%m%d_%H%M%S.png"))
+        path = os.path.join(folder, datetime.datetime.now().strftime("Zyra_%Y%m%d_%H%M%S.png"))
         pyautogui.screenshot().save(path)
         return f"Screenshot saved to {path}"
     except Exception as error:
@@ -269,19 +278,36 @@ def lock_computer():
 
 def request_power_action(action):
     global _pending_power_action
+
     _pending_power_action = action
-    return f"Please say confirm {action} to continue, or cancel."
+
+    return (
+        f"Please say 'confirm {action}' to continue, "
+        f"or say 'cancel shutdown' to cancel."
+    )
 
 
 def confirm_power_action():
     global _pending_power_action
+
     if _pending_power_action not in {"shutdown", "restart"}:
         return "There is no pending shutdown or restart."
+
     action = _pending_power_action
     _pending_power_action = None
-    subprocess.run(["shutdown", "/s" if action == "shutdown" else "/r", "/t", "30"], check=False)
-    return f"Computer will {action} in 30 seconds."
 
+    if action == "shutdown":
+        subprocess.run(
+            ["shutdown", "/s", "/t", "30"],
+            check=False
+        )
+    else:
+        subprocess.run(
+            ["shutdown", "/r", "/t", "30"],
+            check=False
+        )
+
+    return f"Computer will {action} in 30 seconds."
 
 def cancel_shutdown():
     global _pending_power_action
@@ -353,11 +379,56 @@ def system_info():
     cpu = psutil.cpu_percent(interval=1)
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage("C:\\")
+    battery = psutil.sensors_battery()
+    battery_text = (
+        f"Battery {battery.percent} percent"
+        if battery is not None
+        else "Battery information unavailable"
+    )
     return (
         f"CPU usage {cpu} percent. "
         f"Memory usage {memory.percent} percent. "
-        f"Disk usage {disk.percent} percent."
+        f"Disk usage {disk.percent} percent. "
+        f"{battery_text}."
     )
+
+
+def search_files(query, roots=None, max_results=20):
+    query = query.strip().casefold()
+    if not query:
+        return "What file name should I search for?"
+
+    if roots is None:
+        home = os.path.expanduser("~")
+        roots = [
+            os.path.join(home, folder)
+            for folder in ("Desktop", "Documents", "Downloads", "Pictures")
+        ]
+
+    matches = []
+    visited = 0
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for current, directories, filenames in os.walk(root, onerror=lambda error: None):
+            visited += 1
+            directories[:] = [
+                name for name in directories
+                if not name.startswith(".") and name.lower() not in {"$recycle.bin", "system volume information"}
+            ]
+            for filename in filenames:
+                if query in filename.casefold():
+                    matches.append(os.path.join(current, filename))
+                    if len(matches) >= max_results:
+                        break
+            if len(matches) >= max_results or visited >= 5000:
+                break
+        if len(matches) >= max_results or visited >= 5000:
+            break
+
+    if not matches:
+        return f"I couldn't find a file containing {query} in your common folders."
+    return "Found: " + "; ".join(matches)
 
 
 def current_time():
@@ -419,18 +490,33 @@ def open_app(command):
         return lock_computer()
     if "cancel shutdown" in command or "cancel shut down" in command:
         return cancel_shutdown()
-    if "confirm shutdown" in command or "confirm restart" in command:
+    if command in {"lock computer", "lock pc", "lock my computer"}:
+        return lock_computer()
+
+# CONFIRM POWER ACTION
+    if command in {"confirm shutdown", "confirm restart"}:
         return confirm_power_action()
-    if "shutdown" in command or "shut down" in command:
+
+    if command in {
+        "shutdown computer",
+        "shutdown pc",
+        "shut down computer",
+        "shut down pc"
+    }:
         return request_power_action("shutdown")
-    if "restart" in command or "reboot" in command:
+
+    if command in {
+        "restart computer",
+        "restart pc",
+        "reboot computer"
+    }:
         return request_power_action("restart")
     if command.startswith("search google for "):
-        return google_search(command[18:])
+        return google_search(command[len("search google for "):])
     if command.startswith("google "):
         return google_search(command[7:])
     if command.startswith("search youtube for "):
-        return youtube_search(command[20:])
+        return youtube_search(command[len("search youtube for "):])
     if command.startswith("play "):
         return youtube_search(command[5:])
     if command in {"time", "current time"} or "what time" in command:
@@ -444,96 +530,244 @@ def open_app(command):
 
 def handle_device_command(command):
     command = command.lower().strip()
+    command = " ".join(command.split())
+
+    command = re.sub(r"^(?:hey|okay?|ok)\s+(?:zyra|jara)\b[, ]*", "", command)
+    command = re.sub(r"\bhey\s+(?:zyra|jara)\b", "", command)
+    command = " ".join(command.split())
+
+    if command.endswith(" open"):
+        spoken_target = command[:-5].strip()
+        if spoken_target in WEBSITES or spoken_target in APP_PATHS or spoken_target in WINDOWS_APPS:
+            command = f"open {spoken_target}"
 
     replacements = {
         "open d youtube": "open youtube",
         "open the youtube": "open youtube",
-        "open the google": "open google",
         "open d google": "open google",
-        "open the chrome": "open chrome",
+        "open the google": "open google",
         "open d chrome": "open chrome",
-        "open the edge": "open edge",
+        "open the chrome": "open chrome",
         "open d edge": "open edge",
+        "open the edge": "open edge",
     }
-    for old, new in replacements.items():
-        if command == old:
-            command = new
 
+    if command in replacements:
+        command = replacements[command]
+
+    # =========================
+    # OPEN
+    # =========================
     if command.startswith("open "):
         target = command[5:].strip()
-        if target in WEBSITES or target in APP_PATHS or target in WINDOWS_APPS:
+
+        if (
+            target in WEBSITES
+            or target in APP_PATHS
+            or target in WINDOWS_APPS
+        ):
             return open_application(target)
+
         return open_folder(target) or open_application(target)
 
+    # =========================
+    # CLOSE
+    # =========================
     if command.startswith("close "):
         return close_application(command[6:].strip())
 
+    # =========================
+    # VOLUME
+    # =========================
     if "volume up" in command or "increase volume" in command:
         return volume_up()
+
     if "volume down" in command or "decrease volume" in command:
         return volume_down()
+
     if "mute volume" in command or command == "mute":
         return mute_volume()
+
+    # =========================
+    # BRIGHTNESS
+    # =========================
     if "brightness up" in command or "increase brightness" in command:
         return brightness_change("up")
+
     if "brightness down" in command or "decrease brightness" in command:
         return brightness_change("down")
-    if "take screenshot" in command or "screenshot" == command or "capture screen" in command:
+
+    # =========================
+    # SCREENSHOT
+    # =========================
+    if (
+        "take screenshot" in command
+        or command == "screenshot"
+        or "capture screen" in command
+    ):
         return take_screenshot()
-    if command in {"lock computer", "lock pc", "lock my computer"}:
+
+    # =========================
+    # LOCK
+    # =========================
+    if command in {
+        "lock computer",
+        "lock pc",
+        "lock my computer"
+    }:
         return lock_computer()
-    if command in {"shutdown computer", "shutdown pc", "shut down computer", "shut down pc"}:
+
+    # =========================
+    # POWER CONFIRMATION
+    # =========================
+    if command in {
+        "confirm shutdown",
+        "confirm restart"
+    }:
+        return confirm_power_action()
+
+    # =========================
+    # SHUTDOWN
+    # =========================
+    if command in {
+        "shutdown computer",
+        "shutdown pc",
+        "shut down computer",
+        "shut down pc"
+    }:
         return request_power_action("shutdown")
-    if command in {"restart computer", "restart pc", "reboot computer"}:
+
+    # =========================
+    # RESTART
+    # =========================
+    if command in {
+        "restart computer",
+        "restart pc",
+        "reboot computer"
+    }:
         return request_power_action("restart")
-    if command in {"cancel shutdown", "cancel restart"}:
+
+    # =========================
+    # CANCEL POWER ACTION
+    # =========================
+    if command in {
+        "cancel shutdown",
+        "cancel restart"
+    }:
         return cancel_shutdown()
-    if command in {"settings", "open settings", "windows settings"}:
+
+    # =========================
+    # SETTINGS
+    # =========================
+    if command in {
+        "settings",
+        "open settings",
+        "windows settings"
+    }:
         return open_settings()
+
     if "open wifi" in command or "wifi settings" in command:
         return open_settings("wifi")
+
     if "open bluetooth" in command or "bluetooth settings" in command:
         return open_settings("bluetooth")
+
     if "display settings" in command:
         return open_settings("display")
+
     if "sound settings" in command:
         return open_settings("sound")
+
     if "network settings" in command:
         return open_settings("network")
+
+    # =========================
+    # RECYCLE BIN
+    # =========================
     if "recycle bin" in command:
         return open_recycle_bin()
+
+    # =========================
+    # GOOGLE SEARCH
+    # =========================
     if command.startswith("search google for "):
-        return google_search(command.replace("search google for ", "", 1))
+        query = command[len("search google for "):]
+        return google_search(query)
+
+    # =========================
+    # YOUTUBE SEARCH
+    # =========================
     if command.startswith("search youtube for "):
-        return youtube_search(command.replace("search youtube for ", "", 1))
+        query = command[len("search youtube for "):]
+        return youtube_search(query)
+
     if command.startswith("play "):
-        return youtube_search(command[5:].strip())
-    if command in {"copy", "paste", "cut", "select all", "save", "undo", "redo", "new tab", "close tab", "refresh", "alt tab"}:
+        query = command[len("play "):].strip()
+        return youtube_search(query)
+
+    # =========================
+    # KEYBOARD SHORTCUTS
+    # =========================
+    shortcuts = {
+        "copy": ["ctrl", "c"],
+        "paste": ["ctrl", "v"],
+        "cut": ["ctrl", "x"],
+        "select all": ["ctrl", "a"],
+        "save": ["ctrl", "s"],
+        "undo": ["ctrl", "z"],
+        "redo": ["ctrl", "y"],
+        "new tab": ["ctrl", "t"],
+        "close tab": ["ctrl", "w"],
+        "refresh": ["ctrl", "r"],
+        "alt tab": ["alt", "tab"],
+    }
+
+    if command in shortcuts:
         if pyautogui is None:
             return "Install PyAutoGUI for keyboard shortcuts."
-        actions = {
-            "copy": ["ctrl", "c"],
-            "paste": ["ctrl", "v"],
-            "cut": ["ctrl", "x"],
-            "select all": ["ctrl", "a"],
-            "save": ["ctrl", "s"],
-            "undo": ["ctrl", "z"],
-            "redo": ["ctrl", "y"],
-            "new tab": ["ctrl", "t"],
-            "close tab": ["ctrl", "w"],
-            "refresh": ["ctrl", "r"],
-            "alt tab": ["alt", "tab"],
-        }
-        pyautogui.hotkey(*actions[command])
+
+        pyautogui.hotkey(*shortcuts[command])
         return command.capitalize()
-    if command in {"show desktop", "go to desktop", "desktop"}:
+
+    # =========================
+    # DESKTOP
+    # =========================
+    if command in {
+        "show desktop",
+        "go to desktop",
+        "desktop"
+    }:
         return show_desktop()
-    if command in {"open run", "run command"}:
+
+    # =========================
+    # RUN
+    # =========================
+    if command in {
+        "open run",
+        "run command"
+    }:
         return open_run()
-    if "system information" in command or "system info" in command or "computer status" in command:
+
+    # =========================
+    # SYSTEM INFO
+    # =========================
+    if (
+        "system information" in command
+        or "system info" in command
+        or "computer status" in command
+    ):
         return system_info()
+
+    # =========================
+    # TIME
+    # =========================
     if "what time" in command or command == "time":
         return current_time()
+
+    # =========================
+    # DATE
+    # =========================
     if "what date" in command or command == "date":
         return current_date()
+
     return ""

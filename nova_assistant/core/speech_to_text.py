@@ -16,7 +16,7 @@ except ModuleNotFoundError:
     sys.modules["distutils.version"] = distutils.version
 
 import speech_recognition as sr
-from config import STT_LANGUAGE, STT_TIMEOUT, STT_PHRASE_LIMIT
+from config import STT_LANGUAGE, STT_LANGUAGE_OPTIONS, STT_TIMEOUT, STT_PHRASE_LIMIT
 
 
 class SpeechToText:
@@ -24,6 +24,8 @@ class SpeechToText:
         self.recognizer = sr.Recognizer()
         self.recognizer.energy_threshold = 300
         self.recognizer.dynamic_energy_threshold = True
+        self.recognizer.operation_timeout = 10
+        self.language = STT_LANGUAGE
         self.mic = sr.Microphone()
         self._mic_lock = threading.Lock()
         with self.mic as source:
@@ -37,7 +39,7 @@ class SpeechToText:
                     audio = self.recognizer.listen(
                         source, timeout=STT_TIMEOUT, phrase_time_limit=STT_PHRASE_LIMIT
                     )
-                text = self.recognizer.recognize_google(audio, language=STT_LANGUAGE)
+                text = self.recognizer.recognize_google(audio, language=self.language)
                 return text.lower().strip()
             except sr.WaitTimeoutError:
                 return ""
@@ -52,7 +54,13 @@ class SpeechToText:
             try:
                 with self.mic as source:
                     audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=3)
-                text = self.recognizer.recognize_google(audio, language=STT_LANGUAGE).lower()
+                text = self.recognizer.recognize_google(audio, language=self.language).lower()
                 return any(w in text for w in wake_words)
             except (sr.WaitTimeoutError, sr.UnknownValueError, sr.RequestError):
                 return False
+
+    def set_language(self, language: str) -> bool:
+        if language not in STT_LANGUAGE_OPTIONS.values():
+            return False
+        self.language = language
+        return True

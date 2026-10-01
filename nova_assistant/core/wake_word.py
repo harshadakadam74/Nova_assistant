@@ -1,6 +1,6 @@
 """
 Background thread that keeps listening (in short bursts) for a wake word
-like "Hey Nova". This is a simple always-listening loop built on the same
+like "Hey Zyra". This is a simple always-listening loop built on the same
 STT engine — not a dedicated low-power wake-word model (e.g. Porcupine),
 but it works without extra native dependencies or licensing.
 """

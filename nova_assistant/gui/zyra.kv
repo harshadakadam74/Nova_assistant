@@ -3,14 +3,111 @@
 #:import rgba kivy.utils.get_color_from_hex
 
 
-<NovaRoot>:
+<ZyraSettingsPopup>:
+    title: "Zyra settings"
+    size_hint: 0.86, 0.82
+    auto_dismiss: True
+
+    BoxLayout:
+        orientation: "vertical"
+        padding: dp(18)
+        spacing: dp(10)
+
+        Label:
+            text: "RECOGNITION LANGUAGE"
+            size_hint_y: None
+            height: dp(22)
+            color: rgba("#8E9DC1")
+            halign: "left"
+            text_size: self.size
+
+        Spinner:
+            id: language_spinner
+            text: root.selected_language
+            values: root.language_labels
+            size_hint_y: None
+            height: dp(42)
+
+        Label:
+            text: "SPEECH VOICE"
+            size_hint_y: None
+            height: dp(22)
+            color: rgba("#8E9DC1")
+            halign: "left"
+            text_size: self.size
+
+        Spinner:
+            id: voice_spinner
+            text: root.selected_voice
+            values: root.voice_labels
+            size_hint_y: None
+            height: dp(42)
+
+        Label:
+            text: "LISTENING MODE"
+            size_hint_y: None
+            height: dp(22)
+            color: rgba("#8E9DC1")
+            halign: "left"
+            text_size: self.size
+
+        Spinner:
+            id: mode_spinner
+            text: root.selected_mode
+            values: ["Always listening", "Hey Zyra"]
+            size_hint_y: None
+            height: dp(42)
+
+        Label:
+            text: "THEME"
+            size_hint_y: None
+            height: dp(22)
+            color: rgba("#8E9DC1")
+            halign: "left"
+            text_size: self.size
+
+        Spinner:
+            id: theme_spinner
+            text: root.selected_theme
+            values: ["Dark", "Light"]
+            size_hint_y: None
+            height: dp(42)
+
+        Label:
+            text: "Speech rate: %.0f words/minute" % rate_slider.value
+            size_hint_y: None
+            height: dp(24)
+            color: rgba("#E7ECF7")
+
+        Slider:
+            id: rate_slider
+            min: 100
+            max: 250
+            step: 5
+            value: root.rate
+
+        BoxLayout:
+            size_hint_y: None
+            height: dp(46)
+            spacing: dp(8)
+
+            Button:
+                text: "SAVE"
+                on_release: root.apply_settings()
+
+            Button:
+                text: "CANCEL"
+                on_release: root.dismiss()
+
+
+<ZyraRoot>:
     orientation: "vertical"
     padding: dp(20), dp(16)
     spacing: dp(10)
 
     canvas.before:
         Color:
-            rgba: rgba("#080B16")
+            rgba: root.background_color
         Rectangle:
             pos: self.pos
             size: self.size
@@ -26,7 +123,7 @@
         spacing: dp(8)
 
         Label:
-            text: "✦  NOVA"
+            text: "✦  ZYRA"
             font_size: dp(25)
             bold: True
             color: rgba("#72C9FF")
@@ -56,13 +153,13 @@
         height: dp(18)
         font_size: dp(10)
         bold: True
-        color: rgba("#68728A")
+        color: root.secondary_text_color
         halign: "left"
         text_size: self.size
 
 
     # =========================================================
-    # ANIMATED NOVA LISTENING ORB
+    # ANIMATED ZYRA LISTENING ORB
     # =========================================================
 
     BoxLayout:
@@ -71,7 +168,7 @@
         height: dp(350)
         spacing: dp(2)
 
-        NovaListeningOrb:
+        ZyraListeningOrb:
             size_hint_y: 1
 
         Label:
@@ -86,7 +183,7 @@
             text_size: self.size
 
         Label:
-            text: 'Tap the microphone or say "Hey Nova"'
+            text: "Speak naturally; Zyra will keep listening"
             size_hint_y: None
             height: dp(28)
             font_size: dp(14)
@@ -111,7 +208,7 @@
         canvas.before:
 
             Color:
-                rgba: rgba("#11182A")
+                rgba: root.surface_color
 
             RoundedRectangle:
                 pos: self.pos
@@ -119,7 +216,7 @@
                 radius: [dp(16)]
 
             Color:
-                rgba: rgba("#243A63")
+                rgba: root.border_color
 
             Line:
                 rounded_rectangle: self.x, self.y, self.width, self.height, dp(16)
@@ -132,7 +229,7 @@
 
             font_size: dp(15)
 
-            color: rgba("#E7ECF7")
+            color: root.primary_text_color
 
             text_size:
                 self.width - dp(30), None
@@ -153,7 +250,7 @@
     # =========================================================
 
     Button:
-        text: "🎙   TAP TO TALK"
+        text: "PAUSE LISTENING" if root.auto_listening else "START LISTENING"
 
         size_hint_y: None
         height: dp(66)
@@ -186,7 +283,7 @@
                 width: dp(1.2)
 
         on_release:
-            root.on_mic_press()
+            root.toggle_auto_listening()
 
 
     # =========================================================
@@ -199,38 +296,38 @@
         spacing: dp(10)
 
         Button:
-            text: "WAKE WORD"
-
+            text: "SETTINGS"
             font_size: dp(11)
             bold: True
-
             background_normal: ""
             background_color: 0, 0, 0, 0
-
             color: rgba("#DDE6F5")
-
             canvas.before:
-
                 Color:
                     rgba: rgba("#20283A")
-
                 RoundedRectangle:
                     pos: self.pos
                     size: self.size
                     radius: [dp(12)]
-
-                Color:
-                    rgba: rgba("#34476B")
-
-                Line:
-                    rounded_rectangle:
-                        self.x, self.y, self.width, self.height, dp(12)
-
-                    width: dp(0.8)
-
             on_release:
-                root.toggle_wake_word()
+                root.open_settings()
 
+        Button:
+            text: "STOP SPEECH"
+            font_size: dp(11)
+            bold: True
+            background_normal: ""
+            background_color: 0, 0, 0, 0
+            color: rgba("#DDE6F5")
+            canvas.before:
+                Color:
+                    rgba: rgba("#20283A")
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [dp(12)]
+            on_release:
+                root.stop_speech()
 
         Button:
             text: "CLEAR CHAT"
@@ -275,11 +372,11 @@
         height: dp(24)
 
         Label:
-            text: "●  SYSTEM READY"
+            text: root.cpu_status
 
             font_size: dp(10)
 
-            color: rgba("#55E6A5")
+            color: root.secondary_text_color
 
             halign: "left"
             valign: "middle"
@@ -288,13 +385,21 @@
 
 
         Label:
-            text: "MICROPHONE READY"
+            text: root.memory_status
 
             font_size: dp(10)
 
-            color: rgba("#78849C")
+            color: root.secondary_text_color
 
             halign: "right"
             valign: "middle"
 
+            text_size: self.size
+
+        Label:
+            text: root.battery_status
+            font_size: dp(10)
+            color: root.secondary_text_color
+            halign: "right"
+            valign: "middle"
             text_size: self.size

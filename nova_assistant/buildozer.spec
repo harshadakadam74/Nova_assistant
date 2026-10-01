@@ -1,7 +1,7 @@
 [app]
-title = Nova
-package.name = nova
-package.domain = org.novaassistant
+title = Zyra
+package.name = zyra
+package.domain = org.zyraassistant
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,db
 version = 1.0
