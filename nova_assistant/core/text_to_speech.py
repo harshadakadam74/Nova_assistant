@@ -128,3 +128,4 @@ class TextToSpeech:
         finally:
             engine.endLoop()
             self._interrupt_requested.clear()
+            

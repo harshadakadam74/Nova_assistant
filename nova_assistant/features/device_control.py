@@ -376,10 +376,18 @@ def open_run():
 
 
 def system_info():
-    cpu = psutil.cpu_percent(interval=1)
+    cpu = psutil.cpu_percent(interval=None)
     memory = psutil.virtual_memory()
-    disk = psutil.disk_usage("C:\\")
-    battery = psutil.sensors_battery()
+    disk_path = "C:\\" if os.name == "nt" else os.path.expanduser("~")
+    try:
+        disk = psutil.disk_usage(disk_path)
+        disk_text = f"Disk usage {disk.percent} percent."
+    except OSError:
+        disk_text = "Disk information unavailable."
+    try:
+        battery = psutil.sensors_battery()
+    except (OSError, RuntimeError):
+        battery = None
     battery_text = (
         f"Battery {battery.percent} percent"
         if battery is not None
@@ -388,7 +396,7 @@ def system_info():
     return (
         f"CPU usage {cpu} percent. "
         f"Memory usage {memory.percent} percent. "
-        f"Disk usage {disk.percent} percent. "
+        f"{disk_text} "
         f"{battery_text}."
     )
 
