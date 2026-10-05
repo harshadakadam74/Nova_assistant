@@ -18,8 +18,10 @@ STT_LANGUAGE_OPTIONS = {
 	"Hindi": "hi-IN",
 	"Marathi": "mr-IN",
 }
-STT_TIMEOUT = 6         # seconds to wait for speech to start
-STT_PHRASE_LIMIT = 12   # max seconds of a single phrase
+STT_TIMEOUT = 3         # seconds to wait for speech to start
+STT_PHRASE_LIMIT = 8    # max seconds of a single phrase
+STT_REQUEST_TIMEOUT = 4  # max seconds to wait for online recognition
+STT_RETRY_DELAY = 1      # seconds before retrying a recognition failure
 
 # --- Weather (https://openweathermap.org/api - free tier) ---
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
@@ -28,7 +30,7 @@ DEFAULT_CITY = "Latur"
 # --- Optional conversational AI ---
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-GEMINI_TIMEOUT = 15
+GEMINI_TIMEOUT = 8
 GEMINI_HISTORY_TURNS = 6
 
 # --- Storage ---

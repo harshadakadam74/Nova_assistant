@@ -22,6 +22,7 @@ except ImportError:
 
 _IS_ANDROID = platform.system() == "Linux" and "ANDROID_ROOT" in os.environ
 _pending_power_action = None
+_pending_close_app = None
 
 WEBSITES = {
     "google": "https://www.google.com",
@@ -68,6 +69,23 @@ WINDOWS_APPS = {
     "vs code": "Code.exe",
     "vscode": "Code.exe",
     "visual studio code": "Code.exe",
+}
+
+_CLOSE_PROCESS_NAMES = {
+    "chrome": "chrome.exe",
+    "google chrome": "chrome.exe",
+    "edge": "msedge.exe",
+    "microsoft edge": "msedge.exe",
+    "vscode": "Code.exe",
+    "visual studio code": "Code.exe",
+    "vs code": "Code.exe",
+    "notepad": "notepad.exe",
+    "calculator": "CalculatorApp.exe",
+    "paint": "mspaint.exe",
+    "spotify": "Spotify.exe",
+    "cmd": "cmd.exe",
+    "command prompt": "cmd.exe",
+    "powershell": "powershell.exe",
 }
 
 APP_PATHS = {
@@ -189,23 +207,23 @@ def open_folder(folder):
 
 
 def close_application(name):
-    process_names = {
-        "chrome": "chrome.exe",
-        "google chrome": "chrome.exe",
-        "edge": "msedge.exe",
-        "microsoft edge": "msedge.exe",
-        "vscode": "Code.exe",
-        "visual studio code": "Code.exe",
-        "vs code": "Code.exe",
-        "notepad": "notepad.exe",
-        "calculator": "CalculatorApp.exe",
-        "paint": "mspaint.exe",
-        "spotify": "Spotify.exe",
-        "cmd": "cmd.exe",
-        "command prompt": "cmd.exe",
-        "powershell": "powershell.exe",
-    }
-    process = process_names.get(name.lower().strip())
+    global _pending_close_app
+
+    name = name.lower().strip()
+    if name not in _CLOSE_PROCESS_NAMES:
+        return f"I don't know how to close {name}"
+    _pending_close_app = name
+    return f"Say 'confirm close {name}' to close it, or 'cancel action'."
+
+
+def confirm_close_application(name):
+    global _pending_close_app
+
+    name = name.lower().strip()
+    if _pending_close_app != name:
+        return "There is no matching app close waiting for confirmation."
+    _pending_close_app = None
+    process = _CLOSE_PROCESS_NAMES.get(name)
     if not process:
         return f"I don't know how to close {name}"
     result = subprocess.run(["taskkill", "/IM", process, "/F"], capture_output=True, text=True)
@@ -314,6 +332,15 @@ def cancel_shutdown():
     _pending_power_action = None
     subprocess.run(["shutdown", "/a"], check=False)
     return "Shutdown cancelled"
+
+
+def cancel_pending_action():
+    global _pending_close_app, _pending_power_action
+
+    had_pending_action = _pending_close_app is not None or _pending_power_action is not None
+    _pending_close_app = None
+    _pending_power_action = None
+    return "Pending action cancelled." if had_pending_action else "There is no pending action."
 
 
 def open_settings(kind=None):
@@ -581,6 +608,12 @@ def handle_device_command(command):
     # =========================
     # CLOSE
     # =========================
+    if command.startswith("confirm close "):
+        return confirm_close_application(command[len("confirm close "):])
+
+    if command in {"cancel action", "cancel close"}:
+        return cancel_pending_action()
+
     if command.startswith("close "):
         return close_application(command[6:].strip())
 

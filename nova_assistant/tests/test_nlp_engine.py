@@ -4,6 +4,10 @@ from core.nlp_engine import parse_intent
 
 
 class ParseIntentTests(unittest.TestCase):
+    def test_help_commands_are_supported(self):
+        self.assertEqual(parse_intent("help")[0], "help")
+        self.assertEqual(parse_intent("what can you do for me")[0], "help")
+
     def test_calculation_with_what_is_phrase(self):
         intent, entities = parse_intent("what is 45 times 12")
         self.assertEqual(intent, "calculate")

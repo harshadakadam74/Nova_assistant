@@ -84,6 +84,12 @@ speech rate, theme, and either continuous listening or the “Hey Zyra” wake-w
 mode. The microphone remains active while listening is enabled; use **Pause
 Listening** to stop capture and **Stop Speech** to interrupt playback.
 
+On Windows, closing the Zyra window moves it to the notification area so voice
+commands continue running. Choose **Show Zyra** to reopen it or **Quit Zyra** to
+exit. Commands such as “close notepad” ask for “confirm close notepad” before
+closing the app; say “cancel action” to cancel. Shutdown and restart also require
+explicit confirmation.
+
 ## Packaging for Android
 
 ```bash

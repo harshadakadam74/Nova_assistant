@@ -17,6 +17,11 @@ class Zyra:
         self.ai = ai_client or GeminiClient()
         self.awake = False
         self.handlers = {
+            "help": lambda e: (
+                "I can tell you the time, date, weather, and news; set timers, alarms, "
+                "and reminders; manage tasks, schedules, and notes; do calculations; "
+                "search the web or files; and control supported device settings."
+            ),
             "greeting": lambda e: smalltalk.greet(),
             "time_query": lambda e: smalltalk.current_time(),
             "date_query": lambda e: smalltalk.current_date(),
@@ -90,4 +95,12 @@ class Zyra:
             if preferences
             else self.ai.respond(text)
         )
-        return reply or smalltalk.fallback(entities.get("raw", text))
+        if reply:
+            return reply
+        if not getattr(self.ai, "enabled", False):
+            return (
+                "Free-form chat is not configured yet. Add a Gemini API key as "
+                "GEMINI_API_KEY to enable general questions. I can still help "
+                "with built-in commands; say 'help' to hear them."
+            )
+        return "I couldn't get an AI reply just now. Check your internet connection and try again."

@@ -9,6 +9,7 @@ import re
 
 # Each entry: (intent_name, [regex patterns], entity_extractor_or_None)
 _PATTERNS = [
+    ("help", [r"\bhelp\b", r"\bwhat can you do(?: for me)?\b", r"\bwhat commands do you understand\b"], None),
     ("greeting", [r"\b(hi|hello|hey)\b(?!.*zyra)"], None),
     ("time_query", [r"\bwhat(?:s| is)?\s+(?:the\s+)?time\b",
                     r"\bwhat time is it\b"], None),

@@ -9,10 +9,12 @@ Package for Android:
 """
 
 import threading
+import sys
 from datetime import datetime
 import psutil
 from kivy.app import App
 from kivy.clock import Clock
+from kivy.core.window import Window
 from kivy.graphics import Color, Ellipse, Line
 from kivy.lang import Builder
 from kivy.properties import (
@@ -35,7 +37,20 @@ from features.device_control import handle_device_command
 from features import productivity
 
 
-from config import ASSISTANT_NAME, STT_LANGUAGE, STT_LANGUAGE_OPTIONS, TTS_RATE, WAKE_WORDS
+from config import (
+    ASSISTANT_NAME,
+    STT_LANGUAGE,
+    STT_LANGUAGE_OPTIONS,
+    STT_RETRY_DELAY,
+    TTS_RATE,
+    WAKE_WORDS,
+)
+
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+except ImportError:
+    pystray = None
 
 
 # ============================================================
@@ -408,7 +423,7 @@ class ZyraRoot(BoxLayout):
                             "Speech service unavailable; retrying...",
                         )
                     )
-                    threading.Event().wait(5)
+                    threading.Event().wait(STT_RETRY_DELAY)
                     continue
                 if not heard:
                     if self.listening_mode == "Hey Zyra":
@@ -454,7 +469,11 @@ class ZyraRoot(BoxLayout):
 
         if command in {"stop listening", "goodbye", "stop zyra", "go to sleep"}:
             self.stop_auto_listening()
-            self._deliver_response("Goodbye.", wait_for_speech)
+            self._deliver_response(
+                "Listening paused. Zyra will stay open; tap Start Listening to resume.",
+                wait_for_speech,
+            )
+            self.status_text = "Listening paused. Zyra is still open."
             return True
 
         if command in {"stop speaking", "be quiet"}:
@@ -522,17 +541,64 @@ class ZyraRoot(BoxLayout):
 
 class ZyraApp(App):
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._tray_icon = None
+        self._quitting = False
+
     def build(self):
 
         self.title = (
             f"{ASSISTANT_NAME} — Voice Assistant"
         )
 
+        Window.bind(on_request_close=self._handle_window_close)
         return ZyraRoot()
+
+    def on_start(self):
+        if sys.platform != "win32" or pystray is None:
+            return
+
+        image = Image.new("RGBA", (64, 64), (15, 22, 40, 255))
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((7, 7, 57, 57), fill=(33, 102, 168, 255), outline=(84, 185, 255, 255), width=3)
+        draw.ellipse((27, 27, 37, 37), fill=(255, 255, 255, 255))
+        menu = pystray.Menu(
+            pystray.MenuItem("Show Zyra", self._show_from_tray, default=True),
+            pystray.MenuItem("Quit Zyra", self._quit_from_tray),
+        )
+        self._tray_icon = pystray.Icon("zyra", image, "Zyra assistant", menu)
+        threading.Thread(target=self._tray_icon.run, daemon=True).start()
+
+    def _handle_window_close(self, *_args):
+        if sys.platform == "win32" and self._tray_icon and not self._quitting:
+            Window.hide()
+            if self.root:
+                self.root.status_text = "Zyra is running in the system tray."
+            return True
+        return False
+
+    def _show_from_tray(self, *_args):
+        Clock.schedule_once(self._restore_window)
+
+    def _restore_window(self, _dt):
+        Window.show()
+        Window.restore()
+        Window.raise_window()
+
+    def _quit_from_tray(self, *_args):
+        Clock.schedule_once(self._quit_app)
+
+    def _quit_app(self, _dt):
+        self._quitting = True
+        self.stop()
 
     def on_stop(self):
         if self.root:
             self.root.stop_auto_listening()
+        if self._tray_icon:
+            self._tray_icon.stop()
+            self._tray_icon = None
 
 
 # ============================================================

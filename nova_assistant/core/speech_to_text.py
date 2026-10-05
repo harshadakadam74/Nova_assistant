@@ -16,7 +16,13 @@ except ModuleNotFoundError:
     sys.modules["distutils.version"] = distutils.version
 
 import speech_recognition as sr
-from config import STT_LANGUAGE, STT_LANGUAGE_OPTIONS, STT_TIMEOUT, STT_PHRASE_LIMIT
+from config import (
+    STT_LANGUAGE,
+    STT_LANGUAGE_OPTIONS,
+    STT_PHRASE_LIMIT,
+    STT_REQUEST_TIMEOUT,
+    STT_TIMEOUT,
+)
 
 
 class SpeechToText:
@@ -24,7 +30,9 @@ class SpeechToText:
         self.recognizer = sr.Recognizer()
         self.recognizer.energy_threshold = 300
         self.recognizer.dynamic_energy_threshold = True
-        self.recognizer.operation_timeout = 10
+        self.recognizer.operation_timeout = STT_REQUEST_TIMEOUT
+        self.recognizer.pause_threshold = 0.6
+        self.recognizer.non_speaking_duration = 0.4
         self.language = STT_LANGUAGE
         self.mic = sr.Microphone()
         self._mic_lock = threading.Lock()

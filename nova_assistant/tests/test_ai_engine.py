@@ -38,6 +38,7 @@ class GeminiClientTests(unittest.TestCase):
         self.assertNotIn("test-key", url)
         self.assertEqual(request["headers"]["x-goog-api-key"], "test-key")
         self.assertGreater(request["timeout"], 0)
+        self.assertLessEqual(request["timeout"], 8)
         self.assertEqual(len(client.history), 12)
 
     def test_only_explicit_preferences_enter_system_instruction(self):
