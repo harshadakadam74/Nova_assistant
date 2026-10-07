@@ -23,6 +23,20 @@ STT_PHRASE_LIMIT = 8    # max seconds of a single phrase
 STT_REQUEST_TIMEOUT = 4  # max seconds to wait for online recognition
 STT_RETRY_DELAY = 1      # seconds before retrying a recognition failure
 
+ZYRA_COLORS = {
+    "background": "#02091F",
+    "background_2": "#06133A",
+    "blue": "#087CFF",
+    "cyan": "#19D9FF",
+    "violet": "#7A2CFF",
+    "purple": "#9B35FF",
+    "magenta": "#D62CFF",
+    "white": "#EAF6FF",
+    "text": "#C9D8F2",
+    "online": "#55E6A5",
+    "error": "#FF4D6D",
+}
+
 # --- Weather (https://openweathermap.org/api - free tier) ---
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
 DEFAULT_CITY = "Latur"

@@ -112,6 +112,24 @@
             pos: self.pos
             size: self.size
 
+        Color:
+            rgba: 0.02, 0.12, 0.45, 0.18
+        Ellipse:
+            pos: self.center_x - dp(260), self.center_y - dp(120)
+            size: dp(520), dp(520)
+
+        Color:
+            rgba: 0.30, 0.04, 0.52, 0.12
+        Ellipse:
+            pos: self.center_x - dp(200), self.y - dp(80)
+            size: dp(400), dp(400)
+
+        Color:
+            rgba: 0.08, 0.80, 1.0, 0.08
+        Line:
+            circle: (self.center_x, self.center_y + dp(40), dp(210))
+            width: 1.2
+
 
     # =========================================================
     # HEADER

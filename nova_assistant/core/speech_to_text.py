@@ -15,6 +15,7 @@ except ModuleNotFoundError:
     sys.modules["distutils"] = distutils
     sys.modules["distutils.version"] = distutils.version
 
+import numpy as np
 import speech_recognition as sr
 from config import (
     STT_LANGUAGE,
@@ -55,6 +56,33 @@ class SpeechToText:
                 return ""
             except sr.RequestError as e:
                 return f"__error__:{e}"
+
+    def listen_once_with_audio(self):
+        """Return recognized text and raw 16kHz float32 audio samples."""
+        with self._mic_lock:
+            try:
+                with self.mic as source:
+                    audio = self.recognizer.listen(
+                        source, timeout=STT_TIMEOUT, phrase_time_limit=STT_PHRASE_LIMIT
+                    )
+
+                raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
+                samples_16k = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+
+                try:
+                    text = self.recognizer.recognize_google(audio, language=self.language)
+                    return text.lower().strip(), samples_16k
+                except sr.UnknownValueError:
+                    return "", samples_16k
+                except sr.RequestError as e:
+                    return f"__error__:{e}", samples_16k
+
+            except sr.WaitTimeoutError:
+                return "", None
+            except sr.UnknownValueError:
+                return "", None
+            except sr.RequestError as e:
+                return f"__error__:{e}", None
 
     def listen_for_wake_word(self, wake_words, timeout=None) -> bool:
         """Short listen cycle used in the background wake-word loop."""

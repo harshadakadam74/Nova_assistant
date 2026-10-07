@@ -44,6 +44,7 @@ from config import (
     STT_RETRY_DELAY,
     TTS_RATE,
     WAKE_WORDS,
+    ZYRA_COLORS,
 )
 
 try:
@@ -179,9 +180,9 @@ class ZyraRoot(BoxLayout):
     auto_listening = BooleanProperty(False)
     listening_mode = StringProperty("Always listening")
     theme = StringProperty("Dark")
-    background_color = ListProperty([0.031, 0.043, 0.086, 1])
-    surface_color = ListProperty([0.067, 0.094, 0.165, 1])
-    border_color = ListProperty([0.141, 0.227, 0.388, 1])
+    background_color = ListProperty([0.008, 0.035, 0.12, 1])
+    surface_color = ListProperty([0.065, 0.095, 0.185, 1])
+    border_color = ListProperty([0.172, 0.240, 0.420, 1])
     primary_text_color = ListProperty([0.906, 0.925, 0.969, 1])
     secondary_text_color = ListProperty([0.557, 0.616, 0.757, 1])
     cpu_status = StringProperty("CPU --")
@@ -319,9 +320,9 @@ class ZyraRoot(BoxLayout):
             self.secondary_text_color = [0.29, 0.35, 0.45, 1]
             self.theme = "Light"
         else:
-            self.background_color = [0.031, 0.043, 0.086, 1]
-            self.surface_color = [0.067, 0.094, 0.165, 1]
-            self.border_color = [0.141, 0.227, 0.388, 1]
+            self.background_color = [0.008, 0.035, 0.12, 1]
+            self.surface_color = [0.065, 0.095, 0.185, 1]
+            self.border_color = [0.172, 0.240, 0.420, 1]
             self.primary_text_color = [0.906, 0.925, 0.969, 1]
             self.secondary_text_color = [0.557, 0.616, 0.757, 1]
             self.theme = "Dark"
