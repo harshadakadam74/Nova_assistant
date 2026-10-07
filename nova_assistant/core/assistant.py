@@ -73,6 +73,12 @@ class Zyra:
             "tell_fact": lambda e: smalltalk.fact(),
             "thanks": lambda e: "You're welcome!",
             "stop_listening": lambda e: "Goodbye!",
+            "stop_command": lambda e: "Listening paused. I can resume when you say 'start listening'.",
+            "send_message": lambda e: (
+                f"What message should I send to {e.get('name', 'them')}?"
+                if e.get('name')
+                else "Who should I send the message to?"
+            ),
         }
 
     def handle(self, text: str) -> str:

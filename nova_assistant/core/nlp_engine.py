@@ -67,6 +67,9 @@ _PATTERNS = [
 
     ("stop_listening", [r"\bstop listening\b", r"\bgoodbye\b", r"\bstop zyra\b", r"\bgo to sleep\b"], None),
     ("thanks", [r"\bthank(s| you)\b"], None),
+    ("stop_command", [r"\b(?:stop|stop zyra|zyra stop|be quiet|quiet|thamb|thamb zyra|bus|bas)\b"], None),
+    ("send_message", [r"\b(?:send|text|message)\s+(?:to\s+)?(?P<name>[a-zA-Z\s]+?)(?:\s+(?:saying|that|with|this))\s+(?P<message>.+)$",
+                      r"\b(?:send|text|message)\s+(?:to\s+)?(?P<name>[a-zA-Z\s]+)$"], "message"),
 ]
 
 _NUM_WORDS = {"plus": "+", "minus": "-", "times": "*", "x": "*", "×": "*", "dividedby": "/", "÷": "/"}

@@ -86,14 +86,21 @@ class SpeechToText:
 
     def listen_for_wake_word(self, wake_words, timeout=None) -> bool:
         """Short listen cycle used in the background wake-word loop."""
+        detected, _samples = self.listen_for_wake_word_with_audio(wake_words, timeout)
+        return detected
+
+    def listen_for_wake_word_with_audio(self, wake_words, timeout=None):
+        """Return wake-word detection and the captured 16kHz audio samples."""
         with self._mic_lock:
             try:
                 with self.mic as source:
                     audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=3)
+                raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
+                samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
                 text = self.recognizer.recognize_google(audio, language=self.language).lower()
-                return any(w in text for w in wake_words)
+                return any(w in text for w in wake_words), samples
             except (sr.WaitTimeoutError, sr.UnknownValueError, sr.RequestError):
-                return False
+                return False, None
 
     def set_language(self, language: str) -> bool:
         if language not in STT_LANGUAGE_OPTIONS.values():

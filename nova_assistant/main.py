@@ -8,6 +8,7 @@ Package for Android:
     buildozer -v android debug
 """
 
+import re
 import threading
 import sys
 from datetime import datetime
@@ -31,6 +32,7 @@ from kivy.uix.widget import Widget
 from core.database import init_db
 from core.text_to_speech import TextToSpeech
 from core.speech_to_text import SpeechToText
+from core.voice_auth import VoiceAuthenticator
 from core.assistant import Zyra
 from features.alarms import start_alarm_watcher
 from features.device_control import handle_device_command
@@ -216,6 +218,10 @@ class ZyraRoot(BoxLayout):
             self.stt = None
             startup_errors.append(f"Microphone: {error}")
 
+        self.voice_auth = VoiceAuthenticator()
+        self.pending_message_name = None
+        self.pending_message_text = None
+
         self.zyra = Zyra(
             self.tts
         )
@@ -275,6 +281,15 @@ class ZyraRoot(BoxLayout):
     def start_auto_listening(self, *args):
         if self.stt is None:
             self.status_text = "Microphone unavailable. See chat for details."
+            return
+
+        if not self.voice_auth.is_enrolled():
+            self.status_text = "Voice enrollment required."
+            if not getattr(self, "_voice_enrollment_notice_shown", False):
+                self._append(
+                    "Voice lock is active. Run 'python enroll_voice.py' to enroll your voice, then restart Zyra."
+                )
+                self._voice_enrollment_notice_shown = True
             return
 
         if self._auto_thread and self._auto_thread.is_alive():
@@ -401,8 +416,17 @@ class ZyraRoot(BoxLayout):
                     break
 
                 if self.listening_mode == "Hey Zyra" and not self._wake_triggered:
-                    detected = self.stt.listen_for_wake_word(WAKE_WORDS, timeout=4)
+                    detected, samples = self.stt.listen_for_wake_word_with_audio(
+                        WAKE_WORDS, timeout=4
+                    )
                     if detected:
+                        if samples is None or not self.voice_auth.verify(samples):
+                            Clock.schedule_once(
+                                lambda dt: setattr(
+                                    self, "status_text", "Unrecognized voice; ignored."
+                                )
+                            )
+                            continue
                         self._wake_triggered = True
                         Clock.schedule_once(
                             lambda dt: setattr(self, "status_text", "Speak your command...")
@@ -413,7 +437,7 @@ class ZyraRoot(BoxLayout):
                 Clock.schedule_once(
                     lambda dt: setattr(self, "status_text", "Listening...")
                 )
-                heard = self.stt.listen_once()
+                heard, samples = self.stt.listen_once_with_audio()
                 if not self.auto_listening:
                     break
                 if heard.startswith("__error__:"):
@@ -429,6 +453,16 @@ class ZyraRoot(BoxLayout):
                 if not heard:
                     if self.listening_mode == "Hey Zyra":
                         self._wake_triggered = False
+                    continue
+
+                if samples is None or not self.voice_auth.verify(samples):
+                    if self.listening_mode == "Hey Zyra":
+                        self._wake_triggered = False
+                    Clock.schedule_once(
+                        lambda dt: setattr(
+                            self, "status_text", "Unrecognized voice; command ignored."
+                        )
+                    )
                     continue
 
                 self._record_message("user", heard)
@@ -464,11 +498,97 @@ class ZyraRoot(BoxLayout):
     # PROCESS COMMAND
     # ========================================================
 
+    def _is_stop_command(self, command):
+        command = command.lower().strip()
+        stop_words = {
+            "stop",
+            "stop listening",
+            "goodbye",
+            "stop zyra",
+            "zyra stop",
+            "go to sleep",
+            "stop speaking",
+            "be quiet",
+            "quiet",
+            "thamb",
+            "thamb zyra",
+            "bus",
+            "bas",
+        }
+        return command in stop_words or command.endswith(" stop zyra") or command.startswith("stop zyra")
+
+    def _extract_message_target(self, command):
+        command = command.lower().strip()
+        patterns = [
+            r"(?:send|text|message)\s+(?:to\s+)?([a-zA-Z\s]+?)(?:\s+(?:saying|that|with|this))?$",
+            r"(?:send|text|message)\s+(?:to\s+)?([a-zA-Z\s]+?)\s+for\s+.*$",
+            r"(?:to|for)\s+([a-zA-Z\s]+?)(?:\s+(?:saying|that|with|this))?$",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, command)
+            if match:
+                target = match.group(1).strip()
+                target = target.replace("message to ", "").replace("to ", "")
+                target = target.strip()
+                if target and target not in {"me", "myself", "it"}:
+                    return target.title()
+        return None
+
+    def _handle_friend_message_flow(self, command, wait_for_speech):
+        command = command.lower().strip()
+
+        if self.pending_message_name and self.pending_message_text is None:
+            if command in {"yes", "yeah", "confirm", "send", "send it", "okay", "ok"}:
+                self._deliver_response(
+                    f"What message should I send to {self.pending_message_name}?",
+                    wait_for_speech,
+                )
+                return True
+
+            self.pending_message_text = command
+            response = (
+                f"Should I send this message to {self.pending_message_name}? "
+                f"'{command}'"
+            )
+            self._deliver_response(response, wait_for_speech)
+            return True
+
+        if self.pending_message_name and self.pending_message_text is not None:
+            if command in {"yes", "yeah", "confirm", "send", "send it", "okay", "ok"}:
+                target = self.pending_message_name
+                text = self.pending_message_text
+                self.pending_message_name = None
+                self.pending_message_text = None
+                message = f"[MESSAGE SENT] To: {target} | Message: {text}"
+                print(message)
+                self._deliver_response(f"Message sent to {target}.", wait_for_speech)
+                return True
+            if command in {"no", "cancel", "stop", "nevermind", "never mind"}:
+                self.pending_message_name = None
+                self.pending_message_text = None
+                self._deliver_response("Message cancelled.", wait_for_speech)
+                return True
+
+        if any(keyword in command for keyword in ["send message", "send to", "message to", "text to", "send a message", "message for"]):
+            target = self._extract_message_target(command)
+            if not target:
+                self._deliver_response("Who should I send the message to?", wait_for_speech)
+                return True
+            self.pending_message_name = target
+            self.pending_message_text = None
+            self._deliver_response(f"What message should I send to {target}?", wait_for_speech)
+            return True
+
+        return False
+
     def process_command(self, command, wait_for_speech=False):
 
         command = command.lower().strip()
 
-        if command in {"stop listening", "goodbye", "stop zyra", "go to sleep"}:
+        if self._is_stop_command(command):
+            self.tts.stop()
+            self.pending_message_name = None
+            self.pending_message_text = None
             self.stop_auto_listening()
             self._deliver_response(
                 "Listening paused. Zyra will stay open; tap Start Listening to resume.",
@@ -477,7 +597,10 @@ class ZyraRoot(BoxLayout):
             self.status_text = "Listening paused. Zyra is still open."
             return True
 
-        if command in {"stop speaking", "be quiet"}:
+        if self._handle_friend_message_flow(command, wait_for_speech):
+            return True
+
+        if command in {"stop speaking", "be quiet", "quiet"}:
             self.tts.stop()
             self._record_message("assistant", "Stopped speaking.")
             return True
