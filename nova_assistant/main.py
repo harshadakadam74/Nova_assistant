@@ -283,6 +283,15 @@ class ZyraRoot(BoxLayout):
             self.status_text = "Microphone unavailable. See chat for details."
             return
 
+        if not self.voice_auth.is_available():
+            self.status_text = "Voice verification model unavailable."
+            if not getattr(self, "_voice_enrollment_notice_shown", False):
+                self._append(
+                    "Voice verification needs Resemblyzer. Follow the Windows voice-lock setup in README, then restart Zyra."
+                )
+                self._voice_enrollment_notice_shown = True
+            return
+
         if not self.voice_auth.is_enrolled():
             self.status_text = "Voice enrollment required."
             if not getattr(self, "_voice_enrollment_notice_shown", False):

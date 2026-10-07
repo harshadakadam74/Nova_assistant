@@ -48,55 +48,28 @@ class VoiceAuthenticator:
             arr = arr.reshape(-1)
         return arr
 
-    def _fallback_embedding(self, samples: np.ndarray) -> np.ndarray:
-        arr = self._to_float32(samples)
-        if arr is None:
-            return np.zeros(64, dtype=np.float32)
-
-        frame_size = 1024
-        hop = 512
-        features = []
-
-        for i in range(0, max(1, len(arr) - frame_size), hop):
-            frame = arr[i : i + frame_size]
-            if len(frame) < frame_size:
-                break
-            window = frame * np.hanning(frame_size)
-            spectrum = np.abs(np.fft.rfft(window))
-            spectrum = spectrum[:64]
-            features.append(spectrum)
-
-        if not features:
-            return np.zeros(64, dtype=np.float32)
-
-        embedding = np.mean(np.vstack(features), axis=0)
-        embedding = embedding.astype(np.float32)
-
-        norm = np.linalg.norm(embedding)
-        if norm > 0:
-            embedding = embedding / norm
-        return embedding
-
     def _encode_samples(self, samples):
         arr = self._to_float32(samples)
-        if arr is None:
+        if arr is None or self._encoder is None:
             return None
 
-        if self._encoder is not None:
-            try:
-                embedding = self._encoder.embed_utterance(arr)
-                if embedding is not None:
-                    emb = np.asarray(embedding, dtype=np.float32).reshape(-1)
-                    norm = np.linalg.norm(emb)
-                    if norm > 0:
-                        emb = emb / norm
-                    return emb
-            except Exception:
-                pass
-
-        return self._fallback_embedding(arr)
+        try:
+            embedding = self._encoder.embed_utterance(arr)
+        except Exception:
+            return None
+        if embedding is None:
+            return None
+        emb = np.asarray(embedding, dtype=np.float32).reshape(-1)
+        norm = np.linalg.norm(emb)
+        if norm > 0:
+            emb = emb / norm
+        return emb
 
     def save_voiceprint(self, samples):
+        if not self.is_available():
+            raise RuntimeError(
+                "Resemblyzer is unavailable. Install project requirements and retry enrollment."
+            )
         recordings = samples if isinstance(samples, (list, tuple)) else [samples]
         embeddings = [
             embedding
@@ -138,11 +111,19 @@ class VoiceAuthenticator:
             return False
 
         current = self._encode_samples(samples)
-        if current is None:
+        if current is None or current.shape != stored.shape:
             return False
 
         similarity = float(np.dot(stored, current))
         return similarity >= self.threshold
 
     def is_enrolled(self) -> bool:
-        return self.voiceprint_path.exists()
+        stored = self.load_voiceprint()
+        return (
+            self.is_available()
+            and stored is not None
+            and stored.size == 256
+        )
+
+    def is_available(self) -> bool:
+        return self._encoder is not None

@@ -66,6 +66,21 @@ access is required. Zyra does not save microphone audio. Transcribed chat,
 tasks, events, and preferences are stored locally in `data/zyra.db`; use
 **Clear Chat** to delete the saved conversation history.
 
+### Voice lock (Windows)
+
+Zyra needs a speaker-embedding model to verify the enrolled user. In PowerShell,
+install the Windows audio wheel and model dependencies after the regular setup:
+
+```powershell
+python -m pip install torch scipy librosa webrtcvad-wheels
+python -m pip install --no-deps resemblyzer==0.1.4
+python enroll_voice.py
+```
+
+Follow the enrollment prompts, then restart Zyra. The existing `voiceprint.npy`
+must be recreated after installing the model. Without Resemblyzer, voice lock
+stays closed and Zyra will not process commands.
+
 Optional services use environment variables rather than keys stored in source:
 
 ```powershell
